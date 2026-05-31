@@ -51,6 +51,24 @@ Presenta los resultados en bloques de código JSON estructurados, mostrando exac
 - BLOQUE 4: Simula la Query de Base de Datos estructurada que un médico del hospital, utilizando su llave simétrica autorizada, tendría que ejecutar en el backend para desencriptar los datos y ver el perfil completo del paciente.
 
 ## SEGURIDAD
+
+**Rol:** Actúa como Arquitecto de Seguridad de la Información y Cumplimiento Senior para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA).
+
+**Contexto:** Diseñaré la arquitectura de seguridad, privacidad y gobierno de datos de una plataforma que automatiza el triaje mediante un Chatbot (LLM + RAG) e IoT, protegiendo la información médica sensible y garantizando técnica y legalmente que solo los médicos humanos tengan los privilegios para validar diagnósticos y emitir recetas.
+
+**Estándares y Enfoque a aplicar:**
+
+*   **ISO/IEC 27001 e ISO/IEC 27701:** Gestión integral de la seguridad de la información y protección de la privacidad en sistemas en la nube.
+*   **LOPDP y Regulaciones del MSP:** Cumplimiento estricto de la Ley Orgánica de Protección de Datos Personales de Ecuador y lineamientos del Ministerio de Salud Pública para telemedicina y trazabilidad legal.
+*   **Zero Trust Architecture & Privacy by Design:** Asumir que ninguna conexión es segura por defecto. El diseño debe contemplar la anonimización obligatoria (PII Stripping) antes de enviar cualquier dato del paciente al motor LLM. Además, se debe implementar una arquitectura Tamper-Proof (a prueba de manipulaciones) que garantice que el módulo de IA no pueda escalar privilegios ni falsificar la firma electrónica que es exclusiva del médico.
+
+**Mi alcance en el diseño (Lo que voy a hacer):**
+Crear los modelos de amenazas, controles de acceso y políticas criptográficas para 3 áreas clave:
+
+1.  **Motor de IA y Telemetría (Chatbot LLM/RAG + IoT):** Protocolos de cifrado en tránsito (TLS 1.3) para los signos vitales, protección de la base de conocimiento RAG (AES-256 en reposo) y reglas de sanitización para evitar la fuga de datos médicos sensibles al interactuar con las APIs de Inteligencia Artificial.
+2.  **Control de Acceso Médico (IAM y Firmas Electrónicas):** Diseñar el flujo de autenticación robusta (Multifactor/Biometría) para el acceso del Especialista, asegurando el principio de mínimo privilegio (RBAC) y aislando en un entorno criptográfico seguro el botón de "Emitir Receta".
+3.  **Repositorio de Trazabilidad Inmutable (Historial Clínico y Logs):** Arquitectura de registro de auditorías persistentes (logs inalterables) que certifique quién, cómo y cuándo interactuó con el sistema, garantizando evidencia legal a largo plazo para auditorías externas o controversias.
+
 ## FRONTEND
 
 Rol: Actúa como Arquitecto Frontend y Desarrollador Web Senior (React/Vue/Angular) para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA).
@@ -75,5 +93,24 @@ Dashboard Médico Reactivo: Desarrollo del panel del especialista que consuma la
 Historial Clínico (EHR): Vistas de solo lectura y auditoría, consumiendo los datos seudonimizados y cifrados que provee el backend, respetando la estructura LOPDP.
 
 Instrucción: Confirma que entiendes el contexto y la arquitectura requerida. Para empezar, propón la estructura de carpetas/componentes principal para el proyecto y muéstrame un fragmento de código simulado (ej. un Custom Hook en React) que gestione la conexión WebSocket bidiereccional entre el bot de voz del paciente y el motor de IA en el backend.
+
 ## BACKEND
+
+**Rol:** Actúa como Desarrollador Backend para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA).
+
+**Contexto:** Diseñaré la lógica de negocio, la arquitectura de microservicios y la persistencia de datos de una plataforma de misión crítica que automatiza el triaje mediante un Chatbot (LLM + RAG) e IoT. El backend debe orquestar de forma asíncrona la ingesta masiva de telemetría, procesar la comunicación con el motor de IA sin latencia y garantizar la integridad transaccional para que los médicos humanos validen diagnósticos en un entorno concurrente.
+
+**Estándares y Enfoque a aplicar:**
+
+*   **ISO/IEC 25010 (SQuaRE):** Cumplimiento estricto de los atributos de *Fiabilidad* (alta disponibilidad y tolerancia a fallos) y *Eficiencia de Desempeño* (manejo de alta concurrencia sin degradación del tiempo de respuesta) en escenarios de emergencia.
+*   **Event-Driven Architecture & Concurrencia Avanzada (ACID):** Diseño orientado a manejar la ingesta ininterrumpida de biosensores IoT y evitar *Race Conditions* (condiciones de carrera) al momento de asignar emergencias. Implementación de bloqueos transaccionales estrictos en base de datos y procesamiento asíncrono (ej. Hilos Virtuales en entornos como Java/Spring Boot).
+*   **HL7 FHIR & Interoperabilidad de APIs:** Adopción del estándar internacional de informática médica para la estructuración, intercambio e integración segura de los *payloads* JSON entre el core del sistema SAMR-IA y las entidades reguladoras externas (MSP, IESS).
+
+**Mi alcance en el diseño (Lo que voy a hacer):**
+Crear los esquemas de bases de datos segregadas, el diseño de endpoints y la lógica transaccional para 3 áreas clave:
+
+1.  **Orquestador de Triage IA e Ingesta IoT:** Arquitectura de endpoints de alta concurrencia para recibir flujos continuos de signos vitales (telemetría). Integración asíncrona del flujo conversacional del paciente con el motor RAG/LLM para compilar el resumen clínico, asegurando que las llamadas a la IA no bloqueen los hilos de red principales del servidor.
+2.  **Motor Transaccional de Asignación Concurrente:** Lógica dura de base de datos (relacional) para publicar alertas como "ofertas abiertas". Implementación de mecanismos anti-colisión (*Locks* pesimistas/optimistas) que garanticen matemáticamente que un paciente en emergencia sea asignado a un único centro o médico, evitando duplicidad de respuestas.
+3.  **Capa de Integración Clínica y Cierre Transaccional:** Exposición de APIs RESTful estandarizadas (API Gateway) para conectar el frontend del "Dashboard Médico", permitiendo la validación clínica en tiempo real. Además, orquestar *webhooks* e integraciones bidireccionales con ERPs externos para automatizar la facturación y el cobro condicionado justo después de que el médico firme la receta.
+
 ## ARQUITECTO DE SOFTWARE
