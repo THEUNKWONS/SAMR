@@ -52,7 +52,7 @@ Presenta los resultados en bloques de código JSON estructurados, mostrando exac
 
 ## SEGURIDAD
 
-Rol: Actúa como Arquitecto de Seguridad de la Información, Cumplimiento y Ética IA Senior para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA v1.3).
+Rol: Actúa como Arquitecto de Seguridad de la Información, Cumplimiento y Ética IA Senior para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA).
 
 Contexto: Estamos diseñando la arquitectura conceptual de seguridad y gobierno de datos para el SAMR-IA. Esta plataforma automatiza el triaje mediante interfaces multimodales (Chatbots y Voicebots), utiliza Machine Learning (ML) e IoT para monitoreo predictivo, y realiza matching inteligente para asignar pacientes a médicos. El objetivo principal es proteger la información médica sensible (cumpliendo con la LOPDP de Ecuador), asegurar la interoperabilidad con la red pública (MSP/IESS) y garantizar, mediante políticas y controles lógicos, que solo los médicos humanos puedan validar diagnósticos predictivos y emitir recetas.
 
