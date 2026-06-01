@@ -52,22 +52,37 @@ Presenta los resultados en bloques de código JSON estructurados, mostrando exac
 
 ## SEGURIDAD
 
-**Rol:** Actúa como Arquitecto de Seguridad de la Información y Cumplimiento Senior para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA).
+Rol: Actúa como Arquitecto de Seguridad de la Información, Cumplimiento y Ética IA Senior para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA v1.3).
 
-**Contexto:** Diseñaré la arquitectura de seguridad, privacidad y gobierno de datos de una plataforma que automatiza el triaje mediante un Chatbot (LLM + RAG) e IoT, protegiendo la información médica sensible y garantizando técnica y legalmente que solo los médicos humanos tengan los privilegios para validar diagnósticos y emitir recetas.
+Contexto: Estamos diseñando la arquitectura conceptual de seguridad y gobierno de datos para el SAMR-IA. Esta plataforma automatiza el triaje mediante interfaces multimodales (Chatbots y Voicebots), utiliza Machine Learning (ML) e IoT para monitoreo predictivo, y realiza matching inteligente para asignar pacientes a médicos. El objetivo principal es proteger la información médica sensible (cumpliendo con la LOPDP de Ecuador), asegurar la interoperabilidad con la red pública (MSP/IESS) y garantizar, mediante políticas y controles lógicos, que solo los médicos humanos puedan validar diagnósticos predictivos y emitir recetas.
 
-**Estándares y Enfoque a aplicar:**
+Estándares y Enfoque a aplicar:
 
-*   **ISO/IEC 27001 e ISO/IEC 27701:** Gestión integral de la seguridad de la información y protección de la privacidad en sistemas en la nube.
-*   **LOPDP y Regulaciones del MSP:** Cumplimiento estricto de la Ley Orgánica de Protección de Datos Personales de Ecuador y lineamientos del Ministerio de Salud Pública para telemedicina y trazabilidad legal.
-*   **Zero Trust Architecture & Privacy by Design:** Asumir que ninguna conexión es segura por defecto. El diseño debe contemplar la anonimización obligatoria (PII Stripping) antes de enviar cualquier dato del paciente al motor LLM. Además, se debe implementar una arquitectura Tamper-Proof (a prueba de manipulaciones) que garantice que el módulo de IA no pueda escalar privilegios ni falsificar la firma electrónica que es exclusiva del médico.
+ISO 27001 y LOPDP: Gestión de seguridad y protección de datos personales (anonimización obligatoria y gestión de consentimientos).
 
-**Mi alcance en el diseño (Lo que voy a hacer):**
-Crear los modelos de amenazas, controles de acceso y políticas criptográficas para 3 áreas clave:
+Zero Trust & Privacy by Design: Asumir que ninguna conexión es segura. Cifrado conceptual de extremo a extremo (AES-256 en reposo, TLS 1.3 en tránsito).
 
-1.  **Motor de IA y Telemetría (Chatbot LLM/RAG + IoT):** Protocolos de cifrado en tránsito (TLS 1.3) para los signos vitales, protección de la base de conocimiento RAG (AES-256 en reposo) y reglas de sanitización para evitar la fuga de datos médicos sensibles al interactuar con las APIs de Inteligencia Artificial.
-2.  **Control de Acceso Médico (IAM y Firmas Electrónicas):** Diseñar el flujo de autenticación robusta (Multifactor/Biometría) para el acceso del Especialista, asegurando el principio de mínimo privilegio (RBAC) y aislando en un entorno criptográfico seguro el botón de "Emitir Receta".
-3.  **Repositorio de Trazabilidad Inmutable (Historial Clínico y Logs):** Arquitectura de registro de auditorías persistentes (logs inalterables) que certifique quién, cómo y cuándo interactuó con el sistema, garantizando evidencia legal a largo plazo para auditorías externas o controversias.
+Ética de IA: Controles para la mitigación de sesgos en los modelos de triaje/matching y aseguramiento de la explicabilidad de las decisiones.
+
+Desarrolla la siguiente documentación estratégica y conceptual:
+
+Modelo de Amenazas (Nivel Conceptual) para IA e IoT:
+
+Identifica 3 riesgos principales al usar Voicebots/Chatbots y dispositivos IoT en los pacientes.
+
+Propón controles lógicos específicos para sanitizar los datos antes de enviarlos a las APIs de IA (PII Stripping) y para proteger la ejecución de algoritmos en el borde (Edge AI).
+
+Políticas de Control de Acceso (IAM) para Médicos:
+
+Define el flujo de autenticación robusta (ej. MFA, biometría) para el ingreso de los especialistas al sistema.
+
+Redacta la directriz de seguridad técnica que aislará el entorno de "Firma Electrónica de Recetas" garantizando que la IA (LLM/RAG) tenga privilegios de solo lectura y jamás pueda ejecutar esta acción.
+
+Arquitectura Lógica de Retención e Interoperabilidad:
+
+Describe conceptualmente cómo se debe estructurar la base de datos del Historial Clínico (EHR) para que sea auditable e inmutable a lo largo del tiempo (modelo WORM / trazabilidad criptográfica).
+
+Propón 2 medidas de seguridad de red/API esenciales para intercambiar datos de forma segura con los sistemas del Ministerio de Salud (MSP) y el IESS (ej. mTLS, minimización de datos).
 
 ## FRONTEND
 
