@@ -25,30 +25,40 @@ Instrucción: Confirma que entiendes el contexto actualizado y pregúntame con c
 
 ## BASE DATOS
 
-Rol: Actúa como un Arquitecto de Bases de Datos Senior y Oficial de Seguridad de la Información. 
+Rol: Actúa como un Arquitecto de Bases de Datos Senior y Oficial de Seguridad de la Información, experto en entornos de Persistencia Políglota.
 
-Tu objetivo es simular estrictamente la capa de persistencia y seguridad de datos para el "Sistema de Atención Médica Remota (SAMR)", procesando el registro de un triage médico generado por un bot conversacional. 
+Tu objetivo: Simular estrictamente la capa de persistencia y seguridad de datos para el "Sistema de Atención Médica Remota (SAMR)", procesando el registro de un triage médico generado por un bot conversacional.
 
-No debes generar interfaces gráficas, diseño web, ni diálogos de usuario. Tu salida debe ser puramente técnica, simulando la consola del motor de la base de datos documental (tipo Firebase/NoSQL) y demostrando el cumplimiento normativo.
+No debes generar interfaces gráficas, diseño web, ni diálogos de usuario. Tu salida debe ser puramente técnica, simulando la consola de un motor de base de datos documental (tipo MongoDB/NoSQL) para este flujo específico de ingesta no estructurada, demostrando el cumplimiento normativo y la preparación para integrarse con el motor transaccional (SQL) del backend.
 
 1. CONTEXTO DE LOS DATOS DE ENTRADA (Input Simulado a procesar):
-- Datos del Paciente: Vicente Valdivieso (Cédula: 1101234567, Teléfono: 0991234567).
-- Interacción: El bot realizó un triage por dolor de pecho.
-- Diagnóstico IA: Triage Rojo (Posible infarto).
-- Acción: Derivación al centro médico más cercano.
 
-2. RESTRICCIONES DE SEGURIDAD Y NORMATIVA A APLICAR EN LA BASE DE DATOS:
-- Ley Orgánica de Protección de Datos Personales (LOPDP Ecuador): Aplica el principio de minimización y seudonimización. Los identificadores directos (PII) deben almacenarse en una colección separada de los datos clínicos (PHI).
-- Criptografía (AES-256): Los datos sensibles de identificación y contacto del paciente deben persistirse fuertemente encriptados en reposo utilizando el estándar AES-256. En la simulación, representa estos campos con una cadena que simule el cifrado (ej: "ciphertext_AES256_...").
-- ISO 27001 (Controles de Acceso, Integridad y Auditoría): Todo evento de escritura o decisión de la IA debe generar un log de auditoría inmutable (Audit Trail) que registre quién, qué, cuándo y desde dónde se realizó la transacción, asegurando la trazabilidad.
+Datos del Paciente: Vicente Valdivieso (Cédula: 1101234567, Teléfono: 0991234567).
+
+Interacción: El bot realizó un triage por dolor de pecho.
+
+Diagnóstico IA: Triage Rojo (Posible infarto).
+
+Acción: Derivación al centro médico más cercano.
+
+2. RESTRICCIONES DE SEGURIDAD Y NORMATIVA A APLICAR:
+
+Ley Orgánica de Protección de Datos Personales (LOPDP Ecuador): Aplica el principio de minimización y seudonimización. Los identificadores directos (PII) deben almacenarse en una colección separada de los datos clínicos (PHI).
+
+Criptografía Avanzada (Envelope Encryption / AES-256): Los datos sensibles de identificación y contacto deben persistirse fuertemente encriptados en reposo. Asume una arquitectura Zero Trust donde se usa una Data Encryption Key (DEK) envuelta por una Key Encryption Key (KEK). En la simulación, representa estos campos con una cadena que simule el cifrado (ej: "ciphertext_AES256_GCM_...").
+
+ISO 27001 e ISO 27799 (Controles de Acceso, Integridad y Auditoría): Todo evento de escritura o decisión de la IA debe generar un log de auditoría inmutable (Audit Trail) que registre quién, qué, cuándo y desde dónde se realizó la transacción, asegurando la trazabilidad médica y legal.
 
 3. INSTRUCCIONES DE SALIDA (Lo que debes generar):
-Presenta los resultados en bloques de código JSON estructurados, mostrando exactamente cómo quedarían los documentos guardados en la base de datos tras procesar el input:
+Presenta los resultados en bloques de código JSON estructurados, mostrando exactamente cómo quedarían los documentos guardados en la base de datos documental tras procesar el input:
 
-- BLOQUE 1: Colección `Pacientes_Boveda` (Demuestra AES-256). Muestra el documento del paciente donde la cédula, el teléfono y el nombre exacto aparezcan simulando el hash cifrado, guardando únicamente un ID público (seudónimo) en texto plano.
-- BLOQUE 2: Colección `Logs_Triage_Bot` (Demuestra LOPDP). Muestra el registro del triage médico vinculado al paciente únicamente mediante el ID seudonimizado. Debe contener los síntomas, el resultado de la IA y el centro asignado, sin ningún dato personal en texto plano.
-- BLOQUE 3: Colección `Auditoria_ISO27001` (Demuestra Inmutabilidad). Muestra el evento de creación de los registros anteriores, incluyendo el timestamp exacto (ISO 8601), la IP de origen, el ID del bot/servicio que hizo la inserción y una firma criptográfica de integridad.
-- BLOQUE 4: Simula la Query de Base de Datos estructurada que un médico del hospital, utilizando su llave simétrica autorizada, tendría que ejecutar en el backend para desencriptar los datos y ver el perfil completo del paciente.
+BLOQUE 1: Colección Pacientes_Boveda (Demuestra Envelope Encryption). Muestra el documento del paciente donde la cédula, el teléfono y el nombre exacto aparezcan simulando el hash cifrado, guardando únicamente un ID público (seudónimo) en texto plano.
+
+BLOQUE 2: Colección Logs_Triage_Bot (Demuestra LOPDP). Muestra el registro del triage médico vinculado al paciente únicamente mediante el ID seudonimizado. Debe contener los síntomas, el resultado de la IA y el centro asignado, sin ningún dato personal en texto plano.
+
+BLOQUE 3: Colección Auditoria_ISO (Demuestra Inmutabilidad). Muestra el evento de creación de los registros anteriores, incluyendo el timestamp exacto (ISO 8601), la IP de origen, el ID del servicio que hizo la inserción y una firma criptográfica de integridad (hash de la transacción).
+
+BLOQUE 4: Simulación de Query de Desencriptación. Simula la estructura de la consulta (ej. un pipeline de agregación o query lógica) que el backend ejecutaría. Demuestra cómo el sistema del hospital utilizaría el KMS (Key Management Service) simulado para recuperar la DEK y desencriptar la bóveda para ver el perfil completo del paciente ante la emergencia.
 
 ## SEGURIDAD
 
