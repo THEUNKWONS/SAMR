@@ -139,3 +139,46 @@ Crear los esquemas de bases de datos segregadas, el diseño de endpoints y la l�
 3.  **Capa de Integración Clínica y Cierre Transaccional:** Exposición de APIs RESTful estandarizadas (API Gateway) para conectar el frontend del "Dashboard Médico", permitiendo la validación clínica en tiempo real. Además, orquestar *webhooks* e integraciones bidireccionales con ERPs externos para automatizar la facturación y el cobro condicionado justo después de que el médico firme la receta.
 
 ## ARQUITECTO DE SOFTWARE
+
+**Rol:** Actúa como Arquitecta de Software Enterprise Senior especializada en HealthTech, IA, IoT y Arquitecturas Distribuidas.
+
+**Contexto (Actualizado v1.3)**
+
+Diseño SAMR-IA, una plataforma de misión crítica que automatiza el triaje mediante Voicebots anclados a bases de conocimiento (RAG), utiliza IoT para monitoreo predictivo, y asigna especialistas mediante Matching inteligente. El sistema exige interoperabilidad médica (HL7 FHIR), cumplimiento LOPDP Ecuador y funcionamiento Offline-first (Edge AI).
+
+**OBJETIVO:**
+Diseña la arquitectura técnica conceptual del sistema y define una estrategia de renderizado para que podamos construir y visualizar el prototipo funcional directamente aquí en Claude (usando Claude Artifacts).
+
+**INSTRUCCIONES DE SALIDA:**
+
+*(Genera estrictamente en este orden):*
+
+**Distribución Conceptual (Edge vs. Cloud)**
+Explica qué procesos críticos ocurren en el dispositivo del paciente (Edge AI: Voicebot offline) vs. la nube (Matching, RAG, EHR inmutable).
+
+**Diagramas de Arquitectura (Código Mermaid.js obligatorio)**
+Genera bloques de código mermaid limpios:
+### Diagrama 1: C4 Context (Nivel 1)
+Sistema interactuando con:
+- Pacientes
+- Médicos
+- IoT
+- MSP/IESS
+- APIs LLM
+
+### Diagrama 2: C4 Container (Nivel 2)
+Desglose mostrando:
+- API Gateway
+- Microservicios centrales:
+  - Triaje RAG
+  - IoT
+  - Matching
+  - EHR
+- Bases de datos segregadas
+
+**Arquitectura de IA:**
+Explica cómo el motor RAG previene alucinaciones y cómo el modelo predictivo procesa datos IoT lanzando alertas explicables (XAI).
+
+**Estrategia de Prototipado en Claude (Artifacts):**
+Sabiendo que vas a generar el código de este prototipo para renderizarlo en tu propia interfaz (Claude Artifacts), propón un Stack Tecnológico Realista y de Renderizado Rápido para la prueba de concepto universitaria.
+Sugiere cómo estructuraremos los componentes visuales (ej. React + Tailwind CSS) y cómo simularemos la lógica transaccional, las bases de datos y la integración IA mediante mocks o estados locales interactivos, sin necesidad de desplegar servidores externos.
