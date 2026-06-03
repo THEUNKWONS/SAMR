@@ -15,7 +15,7 @@ El **Sistema de Asistencia Médica Remota (SAMR)** es una plataforma transaccion
 Actualmente, el diseño de la interfaz de usuario (UX/UI) y la validación de los flujos de interacción descritos en el Documento de Visión se encuentran desplegados para acceso público. 
 
 Puedes interactuar con el prototipo del sistema aquí:
-🔗 **[Prototipo SAMR en Netlify](https://samr-public.netlify.app/)**
+🔗 **[Prototipo SAMR en Netlify](https://ai.studio/apps/eaa29832-9c77-4881-a00e-0473d00d1b65?fullscreenApplet=true)**
 
 Este despliegue permite a los *Stakeholders* (Pacientes, Médicos, y Administración) validar la usabilidad de las pantallas de teleconsulta, el dashboard de alertas y el ecosistema de ofertas concurrentes.
 
@@ -68,8 +68,6 @@ Este sistema modela los procesos de negocio de:
 
 ## 📚 Documentación Adjunta
 
-* [Documento de Visión (VIS)](https://drive.google.com/file/d/1qqfXFYC4fKENysHaMbcw25FCcpaauGpO/view?usp=sharing)
-* [Matriz de Análisis de Stakeholders](https://docs.google.com/spreadsheets/d/1UyI0kzuC6kXqrPZ53JbAsCYSNrV_BsWg/edit?usp=sharing&ouid=101913543079762845003&rtpof=true&sd=true)
 * [Tablero Kanban / Jira](https://utpl-team-requisitos.atlassian.net/jira/software/projects/SAMR/boards/1/backlog?atlOrigin=eyJpIjoiM2VjYzA5OGQ2YmVkNDIzMDkxYmRlNzg2NTVhMzY1N2MiLCJwIjoiaiJ9)
 
 ---
