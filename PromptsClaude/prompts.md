@@ -155,6 +155,8 @@ Diseña la arquitectura técnica conceptual del sistema y define una estrategia 
 
 **Distribución Conceptual (Edge vs. Cloud)**
 Explica qué procesos críticos ocurren en el dispositivo del paciente (Edge AI: Voicebot offline) vs. la nube (Matching, RAG, EHR inmutable).
+
+
 **Diagramas de Arquitectura (Código Mermaid.js obligatorio)**
 Genera bloques de código mermaid limpios:
 ### Diagrama 1: C4 Context (Nivel 1)
@@ -164,6 +166,7 @@ Sistema interactuando con:
 - IoT
 - MSP/IESS
 - APIs LLM
+
 ### Diagrama 2: C4 Container (Nivel 2)
 Desglose mostrando:
 - API Gateway
@@ -178,5 +181,10 @@ Desglose mostrando:
 Explica cómo el motor RAG previene alucinaciones y cómo el modelo predictivo procesa datos IoT lanzando alertas explicables (XAI).
 
 **Estrategia de Prototipado en Claude (Artifacts)**
+
+**Arquitectura de IA:**
+Explica cómo el motor RAG previene alucinaciones y cómo el modelo predictivo procesa datos IoT lanzando alertas explicables (XAI).
+
+**Estrategia de Prototipado en Claude (Artifacts):**
 Sabiendo que vas a generar el código de este prototipo para renderizarlo en tu propia interfaz (Claude Artifacts), propón un Stack Tecnológico Realista y de Renderizado Rápido para la prueba de concepto universitaria.
 Sugiere cómo estructuraremos los componentes visuales (ej. React + Tailwind CSS) y cómo simularemos la lógica transaccional, las bases de datos y la integración IA mediante mocks o estados locales interactivos, sin necesidad de desplegar servidores externos.
