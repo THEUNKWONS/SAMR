@@ -25,34 +25,45 @@ Instrucción: Confirma que entiendes el contexto actualizado y pregúntame con c
 
 ## BASE DATOS
 
-Rol: Actúa como un Arquitecto de Bases de Datos Senior y Oficial de Seguridad de la Información. 
+Rol: Actúa como un Arquitecto de Bases de Datos Senior y Oficial de Seguridad de la Información, experto en entornos de Persistencia Políglota.
 
-Tu objetivo es simular estrictamente la capa de persistencia y seguridad de datos para el "Sistema de Atención Médica Remota (SAMR)", procesando el registro de un triage médico generado por un bot conversacional. 
+Tu objetivo: Simular estrictamente la capa de persistencia y seguridad de datos para el "Sistema de Atención Médica Remota (SAMR)", procesando el registro de un triage médico generado por un bot conversacional.
 
-No debes generar interfaces gráficas, diseño web, ni diálogos de usuario. Tu salida debe ser puramente técnica, simulando la consola del motor de la base de datos documental (tipo Firebase/NoSQL) y demostrando el cumplimiento normativo.
+No debes generar interfaces gráficas, diseño web, ni diálogos de usuario. Tu salida debe ser puramente técnica, simulando la consola de un motor de base de datos documental (tipo MongoDB/NoSQL) para este flujo específico de ingesta no estructurada, demostrando el cumplimiento normativo y la preparación para integrarse con el motor transaccional (SQL) del backend.
 
 1. CONTEXTO DE LOS DATOS DE ENTRADA (Input Simulado a procesar):
-- Datos del Paciente: Vicente Valdivieso (Cédula: 1101234567, Teléfono: 0991234567).
-- Interacción: El bot realizó un triage por dolor de pecho.
-- Diagnóstico IA: Triage Rojo (Posible infarto).
-- Acción: Derivación al centro médico más cercano.
 
-2. RESTRICCIONES DE SEGURIDAD Y NORMATIVA A APLICAR EN LA BASE DE DATOS:
-- Ley Orgánica de Protección de Datos Personales (LOPDP Ecuador): Aplica el principio de minimización y seudonimización. Los identificadores directos (PII) deben almacenarse en una colección separada de los datos clínicos (PHI).
-- Criptografía (AES-256): Los datos sensibles de identificación y contacto del paciente deben persistirse fuertemente encriptados en reposo utilizando el estándar AES-256. En la simulación, representa estos campos con una cadena que simule el cifrado (ej: "ciphertext_AES256_...").
-- ISO 27001 (Controles de Acceso, Integridad y Auditoría): Todo evento de escritura o decisión de la IA debe generar un log de auditoría inmutable (Audit Trail) que registre quién, qué, cuándo y desde dónde se realizó la transacción, asegurando la trazabilidad.
+Datos del Paciente: Vicente Valdivieso (Cédula: 1101234567, Teléfono: 0991234567).
+
+Interacción: El bot realizó un triage por dolor de pecho.
+
+Diagnóstico IA: Triage Rojo (Posible infarto).
+
+Acción: Derivación al centro médico más cercano.
+
+2. RESTRICCIONES DE SEGURIDAD Y NORMATIVA A APLICAR:
+
+Ley Orgánica de Protección de Datos Personales (LOPDP Ecuador): Aplica el principio de minimización y seudonimización. Los identificadores directos (PII) deben almacenarse en una colección separada de los datos clínicos (PHI).
+
+Criptografía Avanzada (Envelope Encryption / AES-256): Los datos sensibles de identificación y contacto deben persistirse fuertemente encriptados en reposo. Asume una arquitectura Zero Trust donde se usa una Data Encryption Key (DEK) envuelta por una Key Encryption Key (KEK). En la simulación, representa estos campos con una cadena que simule el cifrado (ej: "ciphertext_AES256_GCM_...").
+
+ISO 27001 e ISO 27799 (Controles de Acceso, Integridad y Auditoría): Todo evento de escritura o decisión de la IA debe generar un log de auditoría inmutable (Audit Trail) que registre quién, qué, cuándo y desde dónde se realizó la transacción, asegurando la trazabilidad médica y legal.
 
 3. INSTRUCCIONES DE SALIDA (Lo que debes generar):
-Presenta los resultados en bloques de código JSON estructurados, mostrando exactamente cómo quedarían los documentos guardados en la base de datos tras procesar el input:
+Presenta los resultados en bloques de código JSON estructurados, mostrando exactamente cómo quedarían los documentos guardados en la base de datos documental tras procesar el input:
 
-- BLOQUE 1: Colección `Pacientes_Boveda` (Demuestra AES-256). Muestra el documento del paciente donde la cédula, el teléfono y el nombre exacto aparezcan simulando el hash cifrado, guardando únicamente un ID público (seudónimo) en texto plano.
-- BLOQUE 2: Colección `Logs_Triage_Bot` (Demuestra LOPDP). Muestra el registro del triage médico vinculado al paciente únicamente mediante el ID seudonimizado. Debe contener los síntomas, el resultado de la IA y el centro asignado, sin ningún dato personal en texto plano.
-- BLOQUE 3: Colección `Auditoria_ISO27001` (Demuestra Inmutabilidad). Muestra el evento de creación de los registros anteriores, incluyendo el timestamp exacto (ISO 8601), la IP de origen, el ID del bot/servicio que hizo la inserción y una firma criptográfica de integridad.
-- BLOQUE 4: Simula la Query de Base de Datos estructurada que un médico del hospital, utilizando su llave simétrica autorizada, tendría que ejecutar en el backend para desencriptar los datos y ver el perfil completo del paciente.
+BLOQUE 1: Colección Pacientes_Boveda (Demuestra Envelope Encryption). Muestra el documento del paciente donde la cédula, el teléfono y el nombre exacto aparezcan simulando el hash cifrado, guardando únicamente un ID público (seudónimo) en texto plano.
+
+BLOQUE 2: Colección Logs_Triage_Bot (Demuestra LOPDP). Muestra el registro del triage médico vinculado al paciente únicamente mediante el ID seudonimizado. Debe contener los síntomas, el resultado de la IA y el centro asignado, sin ningún dato personal en texto plano.
+
+BLOQUE 3: Colección Auditoria_ISO (Demuestra Inmutabilidad). Muestra el evento de creación de los registros anteriores, incluyendo el timestamp exacto (ISO 8601), la IP de origen, el ID del servicio que hizo la inserción y una firma criptográfica de integridad (hash de la transacción).
+
+BLOQUE 4: Simulación de Query de Desencriptación. Simula la estructura de la consulta (ej. un pipeline de agregación o query lógica) que el backend ejecutaría. Demuestra cómo el sistema del hospital utilizaría el KMS (Key Management Service) simulado para recuperar la DEK y desencriptar la bóveda para ver el perfil completo del paciente ante la emergencia.
 
 ## SEGURIDAD
 
 Rol: Actúa como Arquitecto de Seguridad de la Información, Cumplimiento y Ética IA Senior para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA v1.3).
+Rol: Actúa como Arquitecto de Seguridad de la Información, Cumplimiento y Ética IA Senior para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA).
 
 Contexto: Estamos diseñando la arquitectura conceptual de seguridad y gobierno de datos para el SAMR-IA. Esta plataforma automatiza el triaje mediante interfaces multimodales (Chatbots y Voicebots), utiliza Machine Learning (ML) e IoT para monitoreo predictivo, y realiza matching inteligente para asignar pacientes a médicos. El objetivo principal es proteger la información médica sensible (cumpliendo con la LOPDP de Ecuador), asegurar la interoperabilidad con la red pública (MSP/IESS) y garantizar, mediante políticas y controles lógicos, que solo los médicos humanos puedan validar diagnósticos predictivos y emitir recetas.
 
@@ -81,6 +92,18 @@ Redacta la directriz de seguridad técnica que aislará el entorno de "Firma Ele
 Arquitectura Lógica de Retención e Interoperabilidad:
 
 Describe conceptualmente cómo se debe estructurar la base de datos del Historial Clínico (EHR) para que sea auditable e inmutable a lo largo del tiempo (modelo WORM / trazabilidad criptográfica).
+
+Políticas de Control de Acceso (IAM) para Médicos:
+
+Define el flujo de autenticación robusta (ej. MFA, biometría) para el ingreso de los especialistas al sistema.
+
+Redacta la directriz de seguridad técnica que aislará el entorno de "Firma Electrónica de Recetas" garantizando que la IA (LLM/RAG) tenga privilegios de solo lectura y jamás pueda ejecutar esta acción.
+
+Arquitectura Lógica de Retención e Interoperabilidad:
+
+Describe conceptualmente cómo se debe estructurar la base de datos del Historial Clínico (EHR) para que sea auditable e inmutable a lo largo del tiempo (modelo WORM / trazabilidad criptográfica).
+
+Propón 2 medidas de seguridad de red/API esenciales para intercambiar datos de forma segura con los sistemas del Ministerio de Salud (MSP) y el IESS (ej. mTLS, minimización de datos).
 
 Propón 2 medidas de seguridad de red/API esenciales para intercambiar datos de forma segura con los sistemas del Ministerio de Salud (MSP) y el IESS (ej. mTLS, minimización de datos).
 ## FRONTEND
@@ -128,3 +151,52 @@ Crear los esquemas de bases de datos segregadas, el diseño de endpoints y la l�
 3.  **Capa de Integración Clínica y Cierre Transaccional:** Exposición de APIs RESTful estandarizadas (API Gateway) para conectar el frontend del "Dashboard Médico", permitiendo la validación clínica en tiempo real. Además, orquestar *webhooks* e integraciones bidireccionales con ERPs externos para automatizar la facturación y el cobro condicionado justo después de que el médico firme la receta.
 
 ## ARQUITECTO DE SOFTWARE
+
+**Rol:** Actúa como Arquitecta de Software Enterprise Senior especializada en HealthTech, IA, IoT y Arquitecturas Distribuidas.
+
+**Contexto (Actualizado v1.3)**
+
+Diseño SAMR-IA, una plataforma de misión crítica que automatiza el triaje mediante Voicebots anclados a bases de conocimiento (RAG), utiliza IoT para monitoreo predictivo, y asigna especialistas mediante Matching inteligente. El sistema exige interoperabilidad médica (HL7 FHIR), cumplimiento LOPDP Ecuador y funcionamiento Offline-first (Edge AI).
+
+**OBJETIVO:**
+Diseña la arquitectura técnica conceptual del sistema y define una estrategia de renderizado para que podamos construir y visualizar el prototipo funcional directamente aquí en Claude (usando Claude Artifacts).
+
+**INSTRUCCIONES DE SALIDA:**
+
+*(Genera estrictamente en este orden):*
+
+**Distribución Conceptual (Edge vs. Cloud)**
+Explica qué procesos críticos ocurren en el dispositivo del paciente (Edge AI: Voicebot offline) vs. la nube (Matching, RAG, EHR inmutable).
+
+
+**Diagramas de Arquitectura (Código Mermaid.js obligatorio)**
+Genera bloques de código mermaid limpios:
+### Diagrama 1: C4 Context (Nivel 1)
+Sistema interactuando con:
+- Pacientes
+- Médicos
+- IoT
+- MSP/IESS
+- APIs LLM
+
+### Diagrama 2: C4 Container (Nivel 2)
+Desglose mostrando:
+- API Gateway
+- Microservicios centrales:
+  - Triaje RAG
+  - IoT
+  - Matching
+  - EHR
+- Bases de datos segregadas
+  
+**Arquitectura de IA**
+Explica cómo el motor RAG previene alucinaciones y cómo el modelo predictivo procesa datos IoT lanzando alertas explicables (XAI).
+
+**Estrategia de Prototipado en Claude (Artifacts)**
+
+**Arquitectura de IA:**
+Explica cómo el motor RAG previene alucinaciones y cómo el modelo predictivo procesa datos IoT lanzando alertas explicables (XAI).
+
+**Estrategia de Prototipado en Claude (Artifacts):**
+Sabiendo que vas a generar el código de este prototipo para renderizarlo en tu propia interfaz (Claude Artifacts), propón un Stack Tecnológico Realista y de Renderizado Rápido para la prueba de concepto universitaria.
+Sugiere cómo estructuraremos los componentes visuales (ej. React + Tailwind CSS) y cómo simularemos la lógica transaccional, las bases de datos y la integración IA mediante mocks o estados locales interactivos, sin necesidad de desplegar servidores externos.
