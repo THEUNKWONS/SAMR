@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block content_public %}
+<div class="glass-card p-4 p-md-5">
+    <h2 class="h5 mb-4 text-center">Registro de Nuevo Paciente</h2>
+    
+    <form method="post" action="{% url 'registro_paciente' %}">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label text-sm text-secondary">Nombres</label>
+                <input type="text" name="nombres" class="form-control-custom w-100" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label text-sm text-secondary">Apellidos</label>
+                <input type="text" name="apellidos" class="form-control-custom w-100" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label text-sm text-secondary">Cédula / DNI</label>
+                <input type="text" name="dni" class="form-control-custom w-100" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label text-sm text-secondary">Teléfono Principal</label>
+                <input type="tel" name="telefono" class="form-control-custom w-100" required>
+            </div>
+            <div class="col-12">
+                <label class="form-label text-sm text-secondary">Correo Electrónico (Será tu usuario)</label>
+                <input type="email" name="email" class="form-control-custom w-100" required>
+            </div>
+            <div class="col-12">
+                <label class="form-label text-sm text-secondary">Contraseña Segura</label>
+                <input type="password" name="password" class="form-control-custom w-100" required minlength="6">
+            </div>
+        </div>
+        
+        <button type="submit" class="btn-premium w-100 mt-4 mb-3">Completar Registro</button>
+        
+        <div class="text-center text-sm">
+            <span class="text-secondary">¿Ya tienes cuenta?</span> 
+            <a href="{% url 'login' %}" class="text-accent text-decoration-none fw-medium" style="color: var(--accent-color);">Inicia Sesión</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

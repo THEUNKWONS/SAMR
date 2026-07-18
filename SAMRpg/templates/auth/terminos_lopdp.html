@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block content_public %}
+<div class="glass-card p-4 p-md-5">
+    <h2 class="h5 mb-4 text-center">Términos y Condiciones (LOPDP)</h2>
+    
+    <div class="mb-4 text-sm text-secondary overflow-auto pe-2" style="max-height: 250px; line-height: 1.6;">
+        <p>Bienvenido al Sistema de Asistencia Médica Remota (SAMR-IA). Para continuar, es necesario que leas detenidamente y aceptes nuestra política de protección de datos personales.</p>
+        <p><strong>Privacidad y Cifrado:</strong> De acuerdo con la Ley Orgánica de Protección de Datos Personales del Ecuador, te informamos que todos tus datos médicos sensibles, telemetría e historial clínico serán resguardados bajo estándares estrictos de encriptación (AES-256).</p>
+        <p><strong>Uso de IA:</strong> Consientes que tus datos biométricos puedan ser analizados por motores de Inteligencia Artificial para ofrecerte triaje inteligente y predecir posibles anomalías. Ningún dato será compartido sin tu consentimiento explícito (Zero Trust).</p>
+    </div>
+    
+    <form method="post" action="{% url 'terminos_lopdp' %}">
+        {% csrf_token %}
+        <div class="form-check mb-4">
+            <input class="form-check-input" type="checkbox" name="acepta" id="flexCheckDefault" required>
+            <label class="form-check-label text-sm" for="flexCheckDefault">
+                He leído y acepto expresamente el procesamiento de mis datos médicos según los términos establecidos.
+            </label>
+        </div>
+        
+        <button type="submit" class="btn-premium w-100">Aceptar y Continuar</button>
+    </form>
+</div>
+{% endblock %}

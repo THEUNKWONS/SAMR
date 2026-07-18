@@ -1,0 +1,134 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAMRpg - Asistencia Médica IA</title>
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{% static 'css/styles.css' %}" rel="stylesheet">
+</head>
+<body>
+    {% if user.is_authenticated and user.acepto_terminos_lopdp %}
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a class="sidebar-brand" href="{% url 'inicio' %}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="var(--accent-color)" class="bi bi-heart-pulse-fill" viewBox="0 0 16 16">
+                      <path d="M1.475 9C2.702 10.84 4.779 12.871 8 15c3.221-2.129 5.298-4.16 6.525-6H12a.5.5 0 0 1-.464-.314l-1.457-3.642-1.598 5.593a.5.5 0 0 1-.945.049L5.889 6.568l-1.473 2.21A.5.5 0 0 1 4 9H1.475Z"/>
+                      <path d="M.88 8C-2.427 1.68 4.41-2 7.823 1.143c.06.055.119.112.176.171a3.12 3.12 0 0 1 .176-.17C11.59-2 18.426 1.68 15.12 8h-2.783l-1.874-4.686a.5.5 0 0 0-.945.049L7.921 8.956 6.464 5.314a.5.5 0 0 0-.88-.091L3.732 8H.88Z"/>
+                    </svg>
+                    SAMR-IA
+                </a>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="{% url 'inicio' %}" class="nav-item-custom {% if request.path == '/' %}active{% endif %}">
+                    Inicio
+                </a>
+                <a href="{% url 'registro_multimodal' %}" class="nav-item-custom {% if 'registro' in request.path %}active{% endif %}">
+                    Registro Multimodal
+                </a>
+                <a href="{% url 'triaje_inteligente' %}" class="nav-item-custom {% if 'triaje' in request.path %}active{% endif %}">
+                    Triaje Inteligente
+                </a>
+                <a href="{% url 'panel_especialista' %}" class="nav-item-custom {% if 'panel' in request.path %}active{% endif %}">
+                    Panel Especialista
+                </a>
+                <a href="{% url 'historial_clinico' %}" class="nav-item-custom {% if 'historial' in request.path %}active{% endif %}">
+                    Historial Clínico
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <div class="main-content">
+            <!-- Topbar -->
+            <header class="topbar">
+                <div class="dropdown">
+                    <div class="user-profile dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        <div class="avatar">
+                            {{ user.username.0|upper }}
+                        </div>
+                        <div class="user-info text-start d-none d-md-block">
+                            <div class="fw-bold text-sm" style="line-height: 1;">{{ user.get_full_name|default:user.username }}</div>
+                            <div class="text-xs text-secondary" style="font-size: 0.8rem;">{{ user.get_tipoUsuario_display }}</div>
+                        </div>
+                    </div>
+                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow">
+                        <li><a class="dropdown-item" href="#">Mi Perfil</a></li>
+                        <li><a class="dropdown-item" href="#">Configuración</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="{% url 'logout' %}">Cerrar Sesión</a></li>
+                    </ul>
+                </div>
+            </header>
+
+            <main class="container-fluid p-4 p-md-5">
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show glass-card" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Botón Flotante del Chatbot -->
+    <button id="chatbot-toggle" class="chatbot-btn" title="Asistencia SAMR-IA">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" class="bi bi-robot" viewBox="0 0 16 16">
+            <path d="M6 12.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5ZM3 8.062C3 6.76 4.235 5.765 5.53 5.889a2.853 2.853 0 0 0 1.026.06c.394-.05.74-.251.98-.553l.36-.453A.5.5 0 0 1 8.28 4.8c.28.375.485.807.595 1.258.07.29.21.56.406.786.195.226.44.406.711.52.271.113.565.158.857.13.414-.04.814-.07 1.151-.07C13.24 7.425 14 8.653 14 10.013c0 1.36-1.025 2.502-2.342 2.584a3.1 3.1 0 0 0-1.11.134A2.083 2.083 0 0 0 9.5 13.9a2.083 2.083 0 0 0-1.048-1.17 3.1 3.1 0 0 0-1.11-.133c-1.317-.082-2.342-1.224-2.342-2.584Z"/>
+            <path d="M12.5 6.5a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 0 1h-.5a.5.5 0 0 1-.5-.5ZM0 6.5a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 0 1h-.5a.5.5 0 0 1-.5-.5Zm7-1.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5Z"/>
+        </svg>
+    </button>
+
+    <!-- Ventana Mockup del Chatbot -->
+    <div id="chatbot-window" class="chatbot-window">
+        <div class="chat-header">
+            <h5>🩺 SAMR-IA Asistente</h5>
+            <button id="close-chat" class="close-chat">&times;</button>
+        </div>
+        <div id="chat-messages" class="chat-messages">
+            <div class="message bot">
+                Hola, soy el asistente virtual de SAMR. ¿En qué te puedo ayudar hoy? Por favor describe tus síntomas o indica si es una emergencia.
+            </div>
+        </div>
+        <div class="chat-input">
+            <input type="text" id="chat-input" placeholder="Escribe tu mensaje..." autocomplete="off">
+            <button id="send-msg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-send-fill" viewBox="0 0 16 16">
+                  <path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-15Zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471-.47 1.178Z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    {% else %}
+    <!-- Layout Limpio Público (Sin botones huérfanos) -->
+    <main class="container-fluid min-vh-100 d-flex flex-column align-items-center justify-content-center">
+        {% if messages %}
+            <div class="position-absolute top-0 end-0 p-4" style="z-index: 2000;">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show glass-card shadow-lg" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+            </div>
+        {% endif %}
+        
+        <div class="w-100" style="max-width: 500px;">
+            {% block content_public %}{% endblock %}
+        </div>
+    </main>
+    {% endif %}
+
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/chatbot.js' %}"></script>
+</body>
+</html>

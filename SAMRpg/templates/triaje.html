@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="glass-card p-4 text-center">
+            <h2 class="h4 mb-4 border-bottom pb-2 text-start" style="border-color: var(--glass-border) !important;">Triaje Inteligente (Módulo 2)</h2>
+            
+            <div class="py-5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="var(--accent-color)" class="bi bi-heart-pulse mb-4" viewBox="0 0 16 16">
+                  <path d="M1.5 8a.5.5 0 0 1 .5-.5h2.764c.954 0 1.79-.67 1.916-1.596l.43-3.155a.5.5 0 0 1 .982-.016l1.246 7.476 1.096-3.288a.5.5 0 0 1 .95.03l.366 2.029A1.5 1.5 0 0 0 13.236 10h1.264a.5.5 0 0 1 0 1h-1.264a2.5 2.5 0 0 1-2.463-2.053l-.116-.642-.906 2.718a.5.5 0 0 1-.945-.04l-1.32-7.92-.3 2.205A2.5 2.5 0 0 1 4.764 9H2a.5.5 0 0 1-.5-.5Zm13-6.5a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5H1.5a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5h13Z"/>
+                </svg>
+                <h3 class="h5 mb-3">Conexión con Sensores IoT Activa</h3>
+                <p class="text-light opacity-75 mb-4">La telemetría está siendo analizada en tiempo real por nuestro motor ML Predictivo.</p>
+                
+                <button class="btn btn-outline-danger px-4 rounded-pill" onclick="document.getElementById('chatbot-toggle').click()">
+                    Reportar Emergencia al Asistente
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

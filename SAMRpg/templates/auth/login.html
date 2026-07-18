@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block content_public %}
+<div class="text-center mb-4">
+    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="var(--accent-color)" class="bi bi-heart-pulse-fill mb-3" viewBox="0 0 16 16">
+      <path d="M1.475 9C2.702 10.84 4.779 12.871 8 15c3.221-2.129 5.298-4.16 6.525-6H12a.5.5 0 0 1-.464-.314l-1.457-3.642-1.598 5.593a.5.5 0 0 1-.945.049L5.889 6.568l-1.473 2.21A.5.5 0 0 1 4 9H1.475Z"/>
+    </svg>
+    <h1 class="h3 fw-bold">SAMR-IA</h1>
+    <p class="text-secondary">Sistema de Asistencia Médica Remota</p>
+</div>
+
+<div class="glass-card p-4 p-md-5">
+    <h2 class="h5 mb-4 text-center">Acceso Seguro</h2>
+    
+    <form method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label class="form-label text-sm text-secondary">Usuario / Correo</label>
+            <input type="text" name="username" class="form-control-custom w-100" required placeholder="Ingresa tu correo">
+        </div>
+        <div class="mb-4">
+            <label class="form-label text-sm text-secondary">Contraseña</label>
+            <input type="password" name="password" class="form-control-custom w-100" required placeholder="••••••••">
+        </div>
+        
+        <button type="submit" class="btn-premium w-100 mb-3">Siguiente paso (2FA)</button>
+        
+        <div class="text-center text-sm">
+            <span class="text-secondary">¿No tienes cuenta?</span> 
+            <a href="{% url 'registro_paciente' %}" class="text-accent text-decoration-none fw-medium" style="color: var(--accent-color);">Regístrate aquí</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
