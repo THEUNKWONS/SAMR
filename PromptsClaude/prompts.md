@@ -62,6 +62,7 @@ BLOQUE 4: Simulación de Query de Desencriptación. Simula la estructura de la c
 
 ## SEGURIDAD
 
+Rol: Actúa como Arquitecto de Seguridad de la Información, Cumplimiento y Ética IA Senior para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA v1.3).
 Rol: Actúa como Arquitecto de Seguridad de la Información, Cumplimiento y Ética IA Senior para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA).
 
 Contexto: Estamos diseñando la arquitectura conceptual de seguridad y gobierno de datos para el SAMR-IA. Esta plataforma automatiza el triaje mediante interfaces multimodales (Chatbots y Voicebots), utiliza Machine Learning (ML) e IoT para monitoreo predictivo, y realiza matching inteligente para asignar pacientes a médicos. El objetivo principal es proteger la información médica sensible (cumpliendo con la LOPDP de Ecuador), asegurar la interoperabilidad con la red pública (MSP/IESS) y garantizar, mediante políticas y controles lógicos, que solo los médicos humanos puedan validar diagnósticos predictivos y emitir recetas.
@@ -92,8 +93,19 @@ Arquitectura Lógica de Retención e Interoperabilidad:
 
 Describe conceptualmente cómo se debe estructurar la base de datos del Historial Clínico (EHR) para que sea auditable e inmutable a lo largo del tiempo (modelo WORM / trazabilidad criptográfica).
 
+Políticas de Control de Acceso (IAM) para Médicos:
+
+Define el flujo de autenticación robusta (ej. MFA, biometría) para el ingreso de los especialistas al sistema.
+
+Redacta la directriz de seguridad técnica que aislará el entorno de "Firma Electrónica de Recetas" garantizando que la IA (LLM/RAG) tenga privilegios de solo lectura y jamás pueda ejecutar esta acción.
+
+Arquitectura Lógica de Retención e Interoperabilidad:
+
+Describe conceptualmente cómo se debe estructurar la base de datos del Historial Clínico (EHR) para que sea auditable e inmutable a lo largo del tiempo (modelo WORM / trazabilidad criptográfica).
+
 Propón 2 medidas de seguridad de red/API esenciales para intercambiar datos de forma segura con los sistemas del Ministerio de Salud (MSP) y el IESS (ej. mTLS, minimización de datos).
 
+Propón 2 medidas de seguridad de red/API esenciales para intercambiar datos de forma segura con los sistemas del Ministerio de Salud (MSP) y el IESS (ej. mTLS, minimización de datos).
 ## FRONTEND
 
 Rol: Actúa como Arquitecto Frontend y Desarrollador Web Senior (React/Vue/Angular) para el "Sistema de Asistencia Médica Remota basado en IA" (SAMR-IA).
