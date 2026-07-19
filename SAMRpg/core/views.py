@@ -149,7 +149,7 @@ def registro_paciente_view(request):
             )
             
             if datos['tipo_usuario'] == 'PACIENTE':
-                Paciente.objects.create(usuario=nuevo_usuario)
+                Paciente.objects.create(usuario=nuevo_usuario, alergias=datos.get('alergias', 'Ninguna'))
             elif datos['tipo_usuario'] == 'FAMILIAR':
                 Familiar.objects.create(
                     usuario=nuevo_usuario,
@@ -228,7 +228,16 @@ def panel_especialista(request):
 @verificado_required
 @rol_requerido(['MEDICO_ESPECIALISTA', 'MEDICO_ASISTENTE', 'PACIENTE', 'FAMILIAR'])
 def historial_clinico(request):
-    return render(request, 'historial.html')
+    historial = []
+    if request.user.tipoUsuario == 'PACIENTE':
+        historial = TriageLog.objects.filter(paciente=request.user.perfil_paciente).order_by('-timestamp')
+    elif request.user.tipoUsuario == 'FAMILIAR':
+        if hasattr(request.user, 'perfil_familiar') and request.user.perfil_familiar.paciente_asociado:
+            historial = TriageLog.objects.filter(paciente=request.user.perfil_familiar.paciente_asociado).order_by('-timestamp')
+    elif request.user.tipoUsuario in ['MEDICO_ESPECIALISTA', 'MEDICO_ASISTENTE']:
+        historial = TriageLog.objects.all().order_by('-timestamp')
+        
+    return render(request, 'historial.html', {'historial': historial})
 
 @login_required
 @verificado_required
@@ -259,7 +268,14 @@ def chatbot_api(request):
                 historial = paciente.historialClinicoBasico or "Ninguno registrado."
                 alergias = paciente.alergias or "Ninguna conocida."
                 
-                contexto_clinico = f"Edad: {edad} años. Sexo: {sexo}. Historial Clínico: {historial}. Alergias: {alergias}."
+                # Obtener última telemetría si existe
+                from .models import Telemetria
+                telemetria_info = "Sin telemetría reciente."
+                ultima_telemetria = Telemetria.objects.filter(paciente=paciente).order_by('-timestamp').first()
+                if ultima_telemetria and ultima_telemetria.datosTelemetria:
+                    telemetria_info = str(ultima_telemetria.datosTelemetria)
+                
+                contexto_clinico = f"Edad: {edad} años. Sexo: {sexo}. Historial Clínico: {historial}. Alergias: {alergias}. Telemetría actual: {telemetria_info}."
 
             # Inicializar cliente OpenAI
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -328,7 +344,8 @@ def chatbot_api(request):
                             "type": "alerta_emergencia",
                             "message": resumen,
                             "paciente": request.user.get_full_name() or request.user.username,
-                            "nivel": nivel
+                            "nivel": nivel,
+                            "triaje_id": triage_log.id if triage_log else None
                         }
                     )
                 except Exception as redis_err:
@@ -343,3 +360,122 @@ def chatbot_api(request):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+@login_required
+@verificado_required
+@rol_requerido(['MEDICO_ESPECIALISTA', 'MEDICO_ASISTENTE'])
+def aceptar_triaje(request, triaje_id):
+    if request.method == 'POST':
+        try:
+            triaje = TriageLog.objects.get(id=triaje_id)
+            if triaje.estado_asignacion == 'PENDIENTE':
+                triaje.estado_asignacion = 'ATENDIDO'
+                triaje.save()
+                
+                # Notificar al paciente por WebSocket
+                channel_layer = get_channel_layer()
+                try:
+                    async_to_sync(channel_layer.group_send)(
+                        f"paciente_{triaje.paciente.usuario.id}",
+                        {
+                            "type": "medico_conectado",
+                            "message": f"El Dr. {request.user.get_full_name() or request.user.username} ha aceptado tu emergencia y está analizando tu caso. Por favor, espera en línea."
+                        }
+                    )
+                except Exception as e:
+                    print(f"Error notificando al paciente: {e}")
+                
+                paciente_nombre = triaje.paciente.usuario.get_full_name() or triaje.paciente.usuario.username
+                return JsonResponse({
+                    'status': 'success', 
+                    'message': 'Triaje aceptado y conectado',
+                    'paciente_nombre': paciente_nombre,
+                    'resumen_medico': triaje.resumen_medico
+                })
+            else:
+                return JsonResponse({'status': 'error', 'message': 'El triaje ya fue atendido por otro especialista'}, status=400)
+        except TriageLog.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Triaje no encontrado'}, status=404)
+            
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+@login_required
+@verificado_required
+@rol_requerido(['MEDICO_ESPECIALISTA', 'MEDICO_ASISTENTE'])
+def generar_receta(request, triaje_id):
+    if request.method == 'POST':
+        try:
+            triaje = TriageLog.objects.get(id=triaje_id)
+            
+            # Inicializar cliente OpenAI
+            client = OpenAI(api_key=settings.OPENAI_API_KEY)
+            
+            prompt = (
+                f"Eres SAMR-IA asistiéndole al Dr. {request.user.get_full_name()}. "
+                f"Genera una Receta Médica y un Plan de Tratamiento formal basado en este triaje:\n"
+                f"Resumen médico: {triaje.resumen_medico}\n"
+                f"Síntomas reportados: {triaje.sintomas_reportados}\n"
+                f"Devuelve SOLO el texto de la receta y tratamiento en formato markdown, listo para ser firmado."
+            )
+            
+            response = client.chat.completions.create(
+                model='gpt-4o-mini',
+                messages=[{"role": "system", "content": prompt}]
+            )
+            
+            contenido_receta = response.choices[0].message.content
+            
+            from .models import Receta
+            receta, created = Receta.objects.get_or_create(triaje=triaje)
+            receta.contenido = contenido_receta
+            receta.firmada = False
+            receta.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'receta': contenido_receta
+            })
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+@login_required
+@verificado_required
+@rol_requerido(['MEDICO_ESPECIALISTA', 'MEDICO_ASISTENTE'])
+def firmar_receta(request, triaje_id):
+    if request.method == 'POST':
+        try:
+            triaje = TriageLog.objects.get(id=triaje_id)
+            from .models import Receta
+            receta = Receta.objects.get(triaje=triaje)
+            
+            receta.firmada = True
+            receta.save()
+            
+            # Auditoría
+            audit_str = f"{receta.id}-FIRMADA-{request.user.id}-{time.time()}".encode('utf-8')
+            crypto_hash = hashlib.sha256(audit_str).hexdigest()
+            
+            AuditLog.objects.create(
+                user_id=request.user.id,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                action=f"Receta Firmada Electrónicamente",
+                model_name="Receta",
+                object_id=str(receta.id),
+                cryptographic_hash=crypto_hash
+            )
+            
+            # Notificar al paciente
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"paciente_{triaje.paciente.usuario.id}",
+                {
+                    "type": "medico_conectado",
+                    "message": "REPORTE MEDICO Y RECETA:\n" + receta.contenido + f"\n\n---\n✅ Firmado electrónicamente por: Dr. {request.user.get_full_name()}"
+                }
+            )
+            
+            return JsonResponse({'status': 'success', 'message': 'Receta firmada y enviada al paciente.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)

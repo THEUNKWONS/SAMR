@@ -17,6 +17,7 @@ class RegistroForm(forms.ModelForm):
     # Renombrando campos que no coinciden directamente con el modelo de manera mágica
     nombres = forms.CharField(max_length=150, required=True)
     apellidos = forms.CharField(max_length=150, required=True)
+    alergias = forms.CharField(widget=forms.Textarea, required=False)
 
     def clean_password(self):
         password = self.cleaned_data.get('password')
@@ -55,11 +56,16 @@ class RegistroForm(forms.ModelForm):
         if tipo == 'FAMILIAR' and not cedula_pac:
             self.add_error('cedula_paciente_asociado', "Debes proporcionar la cédula del paciente.")
 
-        # Si es paciente, validamos edad
-        if tipo == 'PACIENTE' and fecha_nacimiento:
-            today = date.today()
-            age = today.year - fecha_nacimiento.year - ((today.month, today.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
-            if age < 18:
-                self.add_error('fecha_nacimiento', "Los menores de edad deben ser registrados por un Familiar.")
+        # Si es paciente, validamos edad y alergias
+        if tipo == 'PACIENTE':
+            alergias = cleaned_data.get('alergias')
+            if not alergias or alergias.strip() == '':
+                self.add_error('alergias', "El campo de alergias es obligatorio (Escribe 'Ninguna' si no tienes).")
+                
+            if fecha_nacimiento:
+                today = date.today()
+                age = today.year - fecha_nacimiento.year - ((today.month, today.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
+                if age < 18:
+                    self.add_error('fecha_nacimiento', "Los menores de edad deben ser registrados por un Familiar.")
 
         return cleaned_data

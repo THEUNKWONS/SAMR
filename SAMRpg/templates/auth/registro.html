@@ -45,6 +45,13 @@
                 <label class="form-label text-sm text-secondary">Contraseña Segura</label>
                 <input type="password" name="password" class="form-control-custom w-100" required minlength="6">
             </div>
+
+            <!-- Campo para Pacientes -->
+            <div class="col-12" id="campo_alergias">
+                <label class="form-label text-sm text-danger">Alergias Conocidas (Escribe 'Ninguna' si no tienes)</label>
+                <textarea name="alergias" id="input_alergias" class="form-control-custom w-100" rows="2" placeholder="Describa sus alergias médicas aquí..."></textarea>
+            </div>
+
             
             <!-- Campo oculto para Familiares -->
             <div class="col-12" id="campo_cedula_paciente" style="display: none;">
@@ -67,15 +74,23 @@ function toggleFamiliarFields() {
     var tipo = document.getElementById('tipo_usuario').value;
     var campoCedula = document.getElementById('campo_cedula_paciente');
     var inputCedula = document.getElementById('input_cedula_paciente');
+    var campoAlergias = document.getElementById('campo_alergias');
+    var inputAlergias = document.getElementById('input_alergias');
     
     if (tipo === 'FAMILIAR') {
         campoCedula.style.display = 'block';
         inputCedula.required = true;
+        campoAlergias.style.display = 'none';
+        inputAlergias.required = false;
     } else {
         campoCedula.style.display = 'none';
         inputCedula.required = false;
         inputCedula.value = '';
+        campoAlergias.style.display = 'block';
+        inputAlergias.required = true;
     }
 }
+// Init state
+document.addEventListener('DOMContentLoaded', toggleFamiliarFields);
 </script>
 {% endblock %}

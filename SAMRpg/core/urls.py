@@ -19,4 +19,7 @@ urlpatterns = [
     
     # API endpoints
     path('api/chatbot/', views.chatbot_api, name='chatbot_api'),
+    path('api/triaje/<int:triaje_id>/aceptar/', views.aceptar_triaje, name='aceptar_triaje'),
+    path('api/triaje/<int:triaje_id>/generar_receta/', views.generar_receta, name='generar_receta'),
+    path('api/triaje/<int:triaje_id>/firmar_receta/', views.firmar_receta, name='firmar_receta'),
 ]

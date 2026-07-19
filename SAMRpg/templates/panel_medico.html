@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
+{% csrf_token %}
 <div class="row">
     <div class="col-lg-12 mb-4">
         <h2 class="h3 border-bottom pb-2" style="border-color: var(--glass-border) !important;">Panel del Especialista</h2>
@@ -11,16 +12,16 @@
             <h5 class="mb-3">Ofertas de Emergencia</h5>
             {% for triaje in triajes_pendientes %}
                 {% if triaje.nivel_alerta == 'critico' %}
-                <div class="alert alert-warning border-0" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5;">
+                <div class="alert alert-warning border-0" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5;" id="triaje-alert-{{ triaje.id }}">
                     <strong>¡Alerta Crítica!</strong>
                     <p class="mb-1 text-sm">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico }}</p>
-                    <button class="btn btn-sm btn-danger mt-2">Aceptar y Conectar</button>
+                    <button class="btn btn-sm btn-danger mt-2" onclick="aceptarTriaje('{{ triaje.id }}')">Aceptar y Conectar</button>
                 </div>
                 {% elif triaje.nivel_alerta == 'medio' %}
-                <div class="alert border-0" style="background: rgba(255, 255, 255, 0.05); color: var(--text-color);">
+                <div class="alert border-0" style="background: rgba(255, 255, 255, 0.05); color: var(--text-color);" id="triaje-alert-{{ triaje.id }}">
                     <strong>Alerta Media</strong>
                     <p class="mb-1 text-sm text-light opacity-75">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico }}</p>
-                    <button class="btn btn-sm btn-outline-light mt-2">Revisar</button>
+                    <button class="btn btn-sm btn-outline-light mt-2" onclick="aceptarTriaje('{{ triaje.id }}')">Revisar</button>
                 </div>
                 {% else %}
                 <div class="alert border-0" style="background: rgba(16, 185, 129, 0.1); color: #6ee7b7;">
@@ -36,30 +37,36 @@
     </div>
 
     <div class="col-lg-8">
-        <div class="glass-card p-4">
+        <div class="glass-card p-4" id="teleconsulta-panel" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h5 class="mb-0">Teleconsulta Síncrona</h5>
                 <span class="badge bg-success">En línea</span>
             </div>
             
             <div class="video-placeholder rounded mb-4 d-flex align-items-center justify-content-center" style="height: 300px; background: rgba(0,0,0,0.3); border: 1px dashed var(--glass-border);">
-                <span class="text-light opacity-50">Transmisión de Video</span>
+                <span class="text-light opacity-50" id="video-placeholder-text">Transmisión de Video</span>
             </div>
 
             <div class="row">
                 <div class="col-md-6">
                     <h6>Resumen de IA (RAG)</h6>
-                    <p class="text-sm text-light opacity-75 p-2 rounded" style="background: rgba(0,0,0,0.2);">
-                        Basado en el historial y sensores, el paciente presenta taquicardia. 
-                        <a href="#" class="text-info text-decoration-none">Ver protocolo base</a>
+                    <p class="text-sm text-light opacity-75 p-2 rounded" style="background: rgba(0,0,0,0.2);" id="rag-summary-text">
+                        Esperando conexión con paciente...
                     </p>
                 </div>
                 <div class="col-md-6 text-end">
                     <h6>Acciones</h6>
-                    <button class="btn btn-primary btn-sm mb-2" style="background: var(--accent-color); border: none;">Generar Receta (IA)</button><br>
-                    <button class="btn btn-outline-success btn-sm">Firmar Electrónicamente</button>
+                    <button id="btn-generar-receta" class="btn btn-primary btn-sm mb-2 w-100" style="background: var(--accent-color); border: none;" onclick="generarReceta()">Generar Receta (IA)</button><br>
+                    <button id="btn-firmar-receta" class="btn btn-outline-success btn-sm w-100" style="display:none;" onclick="firmarReceta()">Firmar Electrónicamente</button>
                 </div>
             </div>
+            
+            <div id="receta-container" class="mt-4 p-3 rounded" style="display: none; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); white-space: pre-wrap; font-family: monospace; font-size: 14px;">
+                <!-- Aquí aparecerá la receta generada -->
+            </div>
+        </div>
+        <div class="glass-card p-4 d-flex justify-content-center align-items-center" id="empty-panel" style="height: 100%;">
+            <p class="text-muted mb-0">Seleccione un paciente de la lista para iniciar la teleconsulta.</p>
         </div>
     </div>
     </div>
@@ -92,15 +99,16 @@
                     newAlert.innerHTML = `
                         <strong>¡Alerta Crítica!</strong>
                         <p class="mb-1 text-sm">Paciente: ${data.paciente}. ${data.message}</p>
-                        <button class="btn btn-sm btn-danger mt-2">Aceptar y Conectar</button>
+                        <button class="btn btn-sm btn-danger mt-2" onclick="aceptarTriaje('${data.triaje_id}')">Aceptar y Conectar</button>
                     `;
                 } else {
+                    newAlert.id = `triaje-alert-${data.triaje_id}`;
                     newAlert.style.background = 'rgba(255, 255, 255, 0.05)';
                     newAlert.style.color = 'var(--text-color)';
                     newAlert.innerHTML = `
                         <strong>Alerta Media</strong>
                         <p class="mb-1 text-sm text-light opacity-75">Paciente: ${data.paciente}. ${data.message}</p>
-                        <button class="btn btn-sm btn-outline-light mt-2">Revisar</button>
+                        <button class="btn btn-sm btn-outline-light mt-2" onclick="aceptarTriaje('${data.triaje_id}')">Revisar</button>
                     `;
                 }
                 
@@ -114,5 +122,149 @@
             console.error('[WebSocket] Desconectado del servidor.');
         };
     });
+
+    let currentTriajeId = null;
+
+    function aceptarTriaje(triajeId) {
+        currentTriajeId = triajeId;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch(`/api/triaje/${triajeId}/aceptar/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Remover la alerta de la lista
+                const alertEl = document.getElementById(`triaje-alert-${triajeId}`);
+                if (alertEl) alertEl.remove();
+
+                // Mostrar el panel de teleconsulta y ocultar el empty state
+                document.getElementById('empty-panel').style.display = 'none';
+                document.getElementById('teleconsulta-panel').style.display = 'block';
+
+                // Actualizar UI
+                document.getElementById('video-placeholder-text').innerHTML = `Conectado con: <strong>${data.paciente_nombre}</strong><br><small class="text-success mt-2 d-block"><i class="bi bi-camera-video-fill me-1"></i> Transmitiendo en vivo</small>`;
+                document.getElementById('video-placeholder-text').classList.remove('opacity-50');
+                
+                document.getElementById('rag-summary-text').innerHTML = `${data.resumen_medico} <br><a href="#" class="text-info text-decoration-none mt-2 d-inline-block">Ver protocolo base</a>`;
+                
+                // Mostrar un toast success
+                const toastContainer = document.querySelector('.toast-container');
+                if(toastContainer) {
+                    const toast = document.createElement('div');
+                    toast.className = 'toast align-items-center text-white bg-success border-0 shadow-lg fade show';
+                    toast.setAttribute('role', 'alert');
+                    toast.setAttribute('aria-live', 'assertive');
+                    toast.setAttribute('aria-atomic', 'true');
+                    toast.innerHTML = `
+                        <div class="d-flex">
+                            <div class="toast-body fw-medium">
+                                <i class="bi bi-check-circle me-2"></i>
+                                ${data.message}
+                            </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    `;
+                    toastContainer.appendChild(toast);
+                    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 5000);
+                } else {
+                    alert(data.message);
+                }
+            } else {
+                alert("Error: " + data.message);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Error al procesar la solicitud.");
+        });
+    }
+
+    function generarReceta() {
+        if (!currentTriajeId) return;
+        const btnGenerar = document.getElementById('btn-generar-receta');
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        btnGenerar.disabled = true;
+        btnGenerar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Redactando...';
+
+        fetch(`/api/triaje/${currentTriajeId}/generar_receta/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            btnGenerar.innerHTML = 'Receta Generada';
+            if (data.status === 'success') {
+                document.getElementById('receta-container').style.display = 'block';
+                document.getElementById('receta-container').textContent = data.receta;
+                document.getElementById('btn-firmar-receta').style.display = 'inline-block';
+            } else {
+                alert("Error: " + data.message);
+                btnGenerar.disabled = false;
+                btnGenerar.innerHTML = 'Generar Receta (IA)';
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Error de red.");
+            btnGenerar.disabled = false;
+            btnGenerar.innerHTML = 'Generar Receta (IA)';
+        });
+    }
+
+    function firmarReceta() {
+        if (!currentTriajeId) return;
+        const btnFirmar = document.getElementById('btn-firmar-receta');
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        btnFirmar.disabled = true;
+        btnFirmar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Firmando...';
+
+        fetch(`/api/triaje/${currentTriajeId}/firmar_receta/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                btnFirmar.className = 'btn btn-success btn-sm w-100';
+                btnFirmar.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>Documento Firmado y Enviado';
+                document.getElementById('receta-container').style.borderColor = '#10b981';
+                
+                // Mostrar toast success
+                const toastContainer = document.querySelector('.toast-container');
+                if(toastContainer) {
+                    const toast = document.createElement('div');
+                    toast.className = 'toast align-items-center text-white bg-success border-0 shadow-lg fade show';
+                    toast.setAttribute('role', 'alert');
+                    toast.innerHTML = `<div class="d-flex"><div class="toast-body fw-medium"><i class="bi bi-check-circle me-2"></i>${data.message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+                    toastContainer.appendChild(toast);
+                    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 5000);
+                }
+            } else {
+                alert("Error: " + data.message);
+                btnFirmar.disabled = false;
+                btnFirmar.innerHTML = 'Firmar Electrónicamente';
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Error de red.");
+            btnFirmar.disabled = false;
+            btnFirmar.innerHTML = 'Firmar Electrónicamente';
+        });
+    }
 </script>
 {% endblock %}

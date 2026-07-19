@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const chatbotBtn = document.getElementById('chatbot-toggle');
+    const sidebarChatbotToggle = document.getElementById('sidebar-chatbot-toggle');
     const chatbotWindow = document.getElementById('chatbot-window');
     const closeBtn = document.getElementById('close-chat');
     const sendBtn = document.getElementById('send-msg');
@@ -13,6 +14,16 @@ document.addEventListener('DOMContentLoaded', () => {
             chatInput.focus();
         }
     });
+
+    if (sidebarChatbotToggle) {
+        sidebarChatbotToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            chatbotWindow.classList.toggle('active');
+            if (chatbotWindow.classList.contains('active')) {
+                chatInput.focus();
+            }
+        });
+    }
 
     closeBtn.addEventListener('click', () => {
         chatbotWindow.classList.remove('active');
@@ -130,8 +141,33 @@ document.addEventListener('DOMContentLoaded', () => {
         if (extraClass) {
             msgDiv.classList.add(extraClass);
         }
+        msgDiv.style.whiteSpace = 'pre-wrap';
         msgDiv.textContent = text;
         chatMessages.appendChild(msgDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
+
+    // Configurar WebSocket del Paciente para notificaciones en tiempo real
+    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const wsUrl = protocol + window.location.host + '/ws/paciente/';
+    const socket = new WebSocket(wsUrl);
+
+    socket.onopen = function(e) {
+        console.log("[WebSocket] Conectado al canal del paciente");
+    };
+
+    socket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        if (data.type === 'medico_conectado') {
+            appendMessage('bot', '✅ ' + data.message);
+            // Abrir el chat si está cerrado
+            if (!chatbotWindow.classList.contains('active')) {
+                chatbotWindow.classList.add('active');
+            }
+        }
+    };
+
+    socket.onclose = function(e) {
+        console.log("[WebSocket] Desconectado del canal del paciente");
+    };
 });

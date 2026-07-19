@@ -21,27 +21,47 @@
                         </tr>
                     </thead>
                     <tbody>
+                        {% for triaje in historial %}
                         <tr>
-                            <td class="text-light opacity-75">18/07/2026 09:30</td>
-                            <td>Alerta Temprana (IoT)</td>
-                            <td>Arritmia detectada. Derivación automática.</td>
-                            <td>-</td>
-                            <td><span class="badge bg-success">Validado</span></td>
+                            <td class="text-light opacity-75">{{ triaje.timestamp|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                {% if triaje.nivel_alerta == 'critico' %}
+                                <span class="badge bg-danger">Triaje Crítico</span>
+                                {% elif triaje.nivel_alerta == 'medio' %}
+                                <span class="badge bg-warning text-dark">Triaje Medio</span>
+                                {% else %}
+                                <span class="badge bg-success">Triaje Bajo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if triaje.receta and triaje.receta.firmada %}
+                                    <button class="btn btn-sm btn-outline-info" onclick="verReceta('{{ triaje.receta.contenido|escapejs }}', '{{ triaje.timestamp|date:"d/m/Y" }}')">
+                                        <i class="bi bi-file-earmark-medical"></i> Ver Receta
+                                    </button>
+                                {% else %}
+                                    <span class="text-light opacity-75 text-sm">{{ triaje.resumen_medico|truncatechars:40 }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if triaje.receta and triaje.receta.firmada %}
+                                    <span class="text-success"><i class="bi bi-check-circle-fill"></i> Firmada Electrónicamente</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if triaje.receta and triaje.receta.firmada %}
+                                    <span class="badge bg-success">Validado</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Pendiente</span>
+                                {% endif %}
+                            </td>
                         </tr>
+                        {% empty %}
                         <tr>
-                            <td class="text-light opacity-75">18/07/2026 09:45</td>
-                            <td>Teleconsulta</td>
-                            <td>Taquicardia supraventricular.</td>
-                            <td>Dr. A. Silva</td>
-                            <td><span class="badge bg-success">Validado</span></td>
+                            <td colspan="5" class="text-center text-muted py-4">No hay registros en el historial.</td>
                         </tr>
-                        <tr>
-                            <td class="text-light opacity-75">18/07/2026 09:50</td>
-                            <td>Emisión de Receta</td>
-                            <td>Betabloqueantes. Reposo de 3 días.</td>
-                            <td>Dr. A. Silva (Verificada)</td>
-                            <td><span class="badge bg-success">Validado</span></td>
-                        </tr>
+                        {% endfor %}
                     </tbody>
                 </table>
             </div>
@@ -55,4 +75,38 @@
         </div>
     </div>
 </div>
+</div>
+
+<!-- Modal para ver receta -->
+<div class="modal fade" id="recetaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content glass-card border-0" style="background: var(--dark-bg);">
+      <div class="modal-header border-bottom border-secondary">
+        <h5 class="modal-title"><i class="bi bi-file-earmark-medical me-2"></i>Receta Médica y Plan de Tratamiento</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex justify-content-between text-muted mb-3">
+            <span><strong>Paciente:</strong> {{ request.user.first_name }} {{ request.user.last_name }}</span>
+            <span id="modal-fecha-receta"></span>
+        </div>
+        <div id="modal-contenido-receta" class="p-3 rounded" style="background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); white-space: pre-wrap; font-family: monospace; font-size: 14px; min-height: 200px;">
+        </div>
+      </div>
+      <div class="modal-footer border-top border-secondary">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-success"><i class="bi bi-download me-1"></i> Descargar PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+    function verReceta(contenido, fecha) {
+        document.getElementById('modal-contenido-receta').textContent = contenido;
+        document.getElementById('modal-fecha-receta').innerHTML = '<strong>Fecha:</strong> ' + fecha;
+        var myModal = new bootstrap.Modal(document.getElementById('recetaModal'));
+        myModal.show();
+    }
+</script>
 {% endblock %}

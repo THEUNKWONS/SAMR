@@ -19,8 +19,12 @@
             <h2 class="h3 mb-4">Ecosistema Competitivo y Concurrente</h2>
             <p>Plataforma diseñada para resolver la falta de acceso oportuno a atención médica domiciliaria mediante IA y telemetría IoT.</p>
             <div class="d-flex justify-content-center gap-3 mt-4">
+                {% if user.tipoUsuario == 'PACIENTE' or user.tipoUsuario == 'FAMILIAR' %}
                 <a href="{% url 'triaje_inteligente' %}" class="btn btn-primary px-4 py-2 rounded-pill fw-medium" style="background: var(--accent-color); border: none;">Iniciar Triage</a>
+                {% endif %}
+                {% if user.tipoUsuario == 'MEDICO_ESPECIALISTA' or user.tipoUsuario == 'MEDICO_ASISTENTE' %}
                 <a href="{% url 'panel_especialista' %}" class="btn btn-outline-light px-4 py-2 rounded-pill fw-medium">Acceso Especialistas</a>
+                {% endif %}
             </div>
         </div>
     </div>

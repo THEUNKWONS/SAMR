@@ -47,23 +47,26 @@
             </div>
             <nav class="sidebar-nav">
                 <a href="{% url 'inicio' %}" class="nav-item-custom {% if request.path == '/' %}active{% endif %}">
-                    Inicio
+                    <i class="bi bi-house me-2"></i> Inicio
                 </a>
 
                 {% if user.tipoUsuario == 'PACIENTE' or user.tipoUsuario == 'FAMILIAR' %}
                 <a href="{% url 'triaje_inteligente' %}" class="nav-item-custom {% if 'triaje' in request.path %}active{% endif %}">
-                    Triaje Inteligente
+                    <i class="bi bi-activity me-2"></i> Triaje Inteligente
+                </a>
+                <a href="#" id="sidebar-chatbot-toggle" class="nav-item-custom">
+                    <i class="bi bi-robot me-2"></i> Asistente Virtual
                 </a>
                 {% endif %}
 
                 {% if user.tipoUsuario == 'MEDICO_ESPECIALISTA' or user.tipoUsuario == 'MEDICO_ASISTENTE' %}
                 <a href="{% url 'panel_especialista' %}" class="nav-item-custom {% if 'panel' in request.path %}active{% endif %}">
-                    Panel Especialista
+                    <i class="bi bi-clipboard2-pulse me-2"></i> Panel Especialista
                 </a>
                 {% endif %}
 
                 <a href="{% url 'historial_clinico' %}" class="nav-item-custom {% if 'historial' in request.path %}active{% endif %}">
-                    Historial Clínico
+                    <i class="bi bi-journal-medical me-2"></i> Historial Clínico
                 </a>
             </nav>
         </aside>
@@ -103,6 +106,7 @@
         </div>
     </div>
 
+    {% if user.tipoUsuario == 'PACIENTE' or user.tipoUsuario == 'FAMILIAR' %}
     <!-- Botón Flotante del Chatbot -->
     <button id="chatbot-toggle" class="chatbot-btn" title="Asistencia SAMR-IA">
         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" class="bi bi-robot" viewBox="0 0 16 16">
@@ -137,6 +141,7 @@
             </button>
         </div>
     </div>
+    {% endif %}
     {% else %}
     <!-- Layout Limpio Público (Sin botones huérfanos) -->
     <main class="container-fluid min-vh-100 d-flex flex-column align-items-center justify-content-center">

@@ -95,3 +95,13 @@ class TriageLog(models.Model):
 
     def __str__(self):
         return f"Triaje {self.nivel_alerta} - {self.paciente.usuario.username} - {self.timestamp}"
+
+class Receta(models.Model):
+    triaje = models.OneToOneField(TriageLog, on_delete=models.CASCADE, related_name='receta')
+    # Cifrado AES-256 para proteger el diagnóstico y medicamentos
+    contenido = EncryptedTextField(blank=True, null=True)
+    firmada = models.BooleanField(default=False)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Receta para {self.triaje.paciente.usuario.first_name} - Firmada: {self.firmada}"
