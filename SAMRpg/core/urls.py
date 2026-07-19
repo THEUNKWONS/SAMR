@@ -11,8 +11,12 @@ urlpatterns = [
 
     # Internas
     path('', views.inicio, name='inicio'),
-    path('registro-multimodal/', views.registro_multimodal, name='registro_multimodal'),
+    path('perfil/', views.perfil_usuario, name='perfil_usuario'),
+    path('gestionar-familiar/<int:familiar_id>/', views.gestionar_solicitud_familiar, name='gestionar_solicitud_familiar'),
     path('triaje/', views.triaje_inteligente, name='triaje_inteligente'),
     path('panel-medico/', views.panel_especialista, name='panel_especialista'),
     path('historial/', views.historial_clinico, name='historial_clinico'),
+    
+    # API endpoints
+    path('api/chatbot/', views.chatbot_api, name='chatbot_api'),
 ]

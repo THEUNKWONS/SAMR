@@ -2,11 +2,19 @@
 
 {% block content_public %}
 <div class="glass-card p-4 p-md-5">
-    <h2 class="h5 mb-4 text-center">Registro de Nuevo Paciente</h2>
+    <h2 class="h5 mb-4 text-center">Registro de Usuario</h2>
     
     <form method="post" action="{% url 'registro_paciente' %}">
         {% csrf_token %}
         <div class="row g-3">
+            <div class="col-12 mb-2">
+                <label class="form-label text-sm text-secondary">Tipo de Usuario</label>
+                <select name="tipo_usuario" id="tipo_usuario" class="form-control-custom w-100 bg-transparent text-light border-secondary" required onchange="toggleFamiliarFields()">
+                    <option value="PACIENTE" class="text-dark">Soy Paciente</option>
+                    <option value="FAMILIAR" class="text-dark">Soy Familiar / Cuidador</option>
+                </select>
+            </div>
+            
             <div class="col-md-6">
                 <label class="form-label text-sm text-secondary">Nombres</label>
                 <input type="text" name="nombres" class="form-control-custom w-100" required>
@@ -20,9 +28,15 @@
                 <input type="text" name="dni" class="form-control-custom w-100" required>
             </div>
             <div class="col-md-6">
-                <label class="form-label text-sm text-secondary">Teléfono Principal</label>
-                <input type="tel" name="telefono" class="form-control-custom w-100" required>
+                <label class="form-label text-sm text-secondary">Teléfono</label>
+                <input type="tel" name="telefono_principal" class="form-control-custom w-100" required>
             </div>
+            
+            <div class="col-md-6">
+                <label class="form-label text-sm text-secondary">Fecha de Nacimiento</label>
+                <input type="date" name="fecha_nacimiento" class="form-control-custom w-100" required>
+            </div>
+            
             <div class="col-12">
                 <label class="form-label text-sm text-secondary">Correo Electrónico (Será tu usuario)</label>
                 <input type="email" name="email" class="form-control-custom w-100" required>
@@ -30,6 +44,12 @@
             <div class="col-12">
                 <label class="form-label text-sm text-secondary">Contraseña Segura</label>
                 <input type="password" name="password" class="form-control-custom w-100" required minlength="6">
+            </div>
+            
+            <!-- Campo oculto para Familiares -->
+            <div class="col-12" id="campo_cedula_paciente" style="display: none;">
+                <label class="form-label text-sm text-warning">Cédula del Paciente a Vincular (El paciente deberá aprobar tu solicitud)</label>
+                <input type="text" name="cedula_paciente_asociado" id="input_cedula_paciente" class="form-control-custom w-100" placeholder="Ej. 1720...">
             </div>
         </div>
         
@@ -41,4 +61,21 @@
         </div>
     </form>
 </div>
+
+<script>
+function toggleFamiliarFields() {
+    var tipo = document.getElementById('tipo_usuario').value;
+    var campoCedula = document.getElementById('campo_cedula_paciente');
+    var inputCedula = document.getElementById('input_cedula_paciente');
+    
+    if (tipo === 'FAMILIAR') {
+        campoCedula.style.display = 'block';
+        inputCedula.required = true;
+    } else {
+        campoCedula.style.display = 'none';
+        inputCedula.required = false;
+        inputCedula.value = '';
+    }
+}
+</script>
 {% endblock %}

@@ -1,22 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-
-# Simulación de cifrado AES-256 para el prototipo
-class EncryptedTextField(models.TextField):
-    description = "A simulated AES-256 encrypted text field"
-    
-    def get_prep_value(self, value):
-        if value is None:
-            return value
-        return f"[CIPHERTEXT_AES256_GCM] {value}"
-        
-class EncryptedJSONField(models.JSONField):
-    description = "A simulated AES-256 encrypted JSON field"
-    
-    def get_prep_value(self, value):
-        if value is None:
-            return value
-        return f"[CIPHERTEXT_AES256_GCM] {value}"
+from core.fields import EncryptedTextField, EncryptedJSONField
+# Usaremos encrypt() directamente en los modelos.
 
 class Usuario(AbstractUser):
     TIPO_USUARIO_CHOICES = [
@@ -43,14 +28,20 @@ class Usuario(AbstractUser):
 
 class Paciente(models.Model):
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name='perfil_paciente')
-    # Cifrado AES-256 simulado para datos médicos sensibles
+    # Cifrado AES-256 Real para datos médicos sensibles
     historialClinicoBasico = EncryptedTextField(blank=True, null=True)
     alergias = EncryptedTextField(blank=True, null=True)
 
 class Familiar(models.Model):
+    ESTADOS_SOLICITUD = [
+        ('PENDIENTE', 'Pendiente'),
+        ('ACEPTADO', 'Aceptado'),
+        ('RECHAZADO', 'Rechazado'),
+    ]
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name='perfil_familiar')
     paciente_asociado = models.ForeignKey(Paciente, on_delete=models.SET_NULL, null=True, blank=True)
     relacionConPaciente = models.CharField(max_length=50)
+    estado_solicitud = models.CharField(max_length=20, choices=ESTADOS_SOLICITUD, default='PENDIENTE')
 
 class MedicoEspecialista(models.Model):
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name='perfil_especialista')
@@ -68,7 +59,7 @@ class EntidadCertificadora(models.Model):
 
 class Telemetria(models.Model):
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
-    # Cifrado AES-256 simulado para telemetría en reposo
+    # Cifrado AES-256 Real para telemetría en reposo
     datosTelemetria = EncryptedJSONField(blank=True, null=True)
     umbralAnomalia = models.CharField(max_length=50)
     estadoProcesamiento = models.CharField(max_length=50, default='Pendiente')
@@ -76,3 +67,31 @@ class Telemetria(models.Model):
 
     def __str__(self):
         return f"Telemetría de {self.paciente.usuario.first_name} - {self.timestamp}"
+
+class AuditLog(models.Model):
+    timestamp = models.DateTimeField(auto_now_add=True)
+    user_id = models.IntegerField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    action = models.CharField(max_length=255)
+    model_name = models.CharField(max_length=100)
+    object_id = models.CharField(max_length=255)
+    cryptographic_hash = models.CharField(max_length=64, help_text="SHA-256 hash for WORM compliance")
+    
+    def __str__(self):
+        return f"AUDIT [{self.timestamp}] {self.action} on {self.model_name}"
+
+class TriageLog(models.Model):
+    ESTADOS_ASIGNACION = [
+        ('PENDIENTE', 'Pendiente'),
+        ('ATENDIDO', 'Atendido'),
+    ]
+    paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE, related_name='triajes')
+    sintomas_reportados = models.TextField()
+    nivel_alerta = models.CharField(max_length=20)
+    respuesta_ia = models.TextField()
+    resumen_medico = models.TextField()
+    estado_asignacion = models.CharField(max_length=20, choices=ESTADOS_ASIGNACION, default='PENDIENTE')
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Triaje {self.nivel_alerta} - {self.paciente.usuario.username} - {self.timestamp}"

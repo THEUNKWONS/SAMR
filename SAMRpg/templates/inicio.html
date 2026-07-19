@@ -2,6 +2,15 @@
 
 {% block content %}
 <div class="row justify-content-center">
+    {% if user.tipoUsuario == 'FAMILIAR' and user.perfil_familiar.estado_solicitud == 'PENDIENTE' %}
+    <div class="col-lg-10 mb-4">
+        <div class="alert alert-warning bg-warning bg-opacity-10 border-warning text-warning text-center shadow-sm">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>¡Cuenta en revisión!</strong> Tu cuenta como familiar aún no ha sido verificada. El paciente debe aceptar tu solicitud desde su perfil para que puedas vincularte.
+        </div>
+    </div>
+    {% endif %}
+    
     <div class="col-lg-10 text-center">
         <h1 class="display-3 fw-bold mb-4">Bienvenido a <span class="text-gradient">SAMR-IA</span></h1>
         <p class="lead mb-5 text-light opacity-75">La atención va hacia el paciente, no el paciente hacia la atención.</p>
@@ -10,7 +19,7 @@
             <h2 class="h3 mb-4">Ecosistema Competitivo y Concurrente</h2>
             <p>Plataforma diseñada para resolver la falta de acceso oportuno a atención médica domiciliaria mediante IA y telemetría IoT.</p>
             <div class="d-flex justify-content-center gap-3 mt-4">
-                <a href="{% url 'registro_multimodal' %}" class="btn btn-primary px-4 py-2 rounded-pill fw-medium" style="background: var(--accent-color); border: none;">Iniciar Triage</a>
+                <a href="{% url 'triaje_inteligente' %}" class="btn btn-primary px-4 py-2 rounded-pill fw-medium" style="background: var(--accent-color); border: none;">Iniciar Triage</a>
                 <a href="{% url 'panel_especialista' %}" class="btn btn-outline-light px-4 py-2 rounded-pill fw-medium">Acceso Especialistas</a>
             </div>
         </div>

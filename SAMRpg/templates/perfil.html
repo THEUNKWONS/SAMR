@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row g-4">
+        
+        <!-- Tarjeta de Perfil -->
+        <div class="col-lg-4">
+            <div class="glass-card text-center p-4 interactive-card">
+                <div class="avatar-circle mx-auto mb-3" style="width: 100px; height: 100px; background: linear-gradient(135deg, var(--accent-color), var(--success-color)); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <span class="h1 text-white m-0">{{ user.first_name|first|default:user.username|first|upper }}</span>
+                </div>
+                <h3 class="h4 mb-1">{{ user.get_full_name|default:user.username }}</h3>
+                <p class="text-secondary mb-3">{{ user.tipoUsuario }}</p>
+                <div class="d-flex justify-content-center gap-2">
+                    <span class="badge bg-primary bg-opacity-25 text-primary border border-primary">Activo</span>
+                    {% if user.acepto_terminos_lopdp %}
+                    <span class="badge bg-success bg-opacity-25 text-success border border-success">LOPDP ✅</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Contenido Principal -->
+        <div class="col-lg-8">
+            <div class="glass-card p-4 h-100">
+                <ul class="nav nav-tabs custom-tabs mb-4" id="profileTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active bg-transparent text-light border-0" id="datos-tab" data-bs-toggle="tab" data-bs-target="#datos" type="button" role="tab">Mis Datos</button>
+                    </li>
+                    {% if user.tipoUsuario == 'PACIENTE' %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link bg-transparent text-secondary border-0" id="familiares-tab" data-bs-toggle="tab" data-bs-target="#familiares" type="button" role="tab">
+                            Familiares 
+                            {% if solicitudes %}<span class="badge bg-danger rounded-pill ms-1">{{ solicitudes|length }}</span>{% endif %}
+                        </button>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link bg-transparent text-secondary border-0" id="configuracion-tab" data-bs-toggle="tab" data-bs-target="#configuracion" type="button" role="tab">Configuración</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="profileTabsContent">
+                    
+                    <!-- Tab Mis Datos -->
+                    <div class="tab-pane fade show active" id="datos" role="tabpanel">
+                        <h4 class="h5 mb-3 border-bottom border-secondary pb-2">Información Personal</h4>
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="text-secondary small">Cédula / DNI</label>
+                                <p class="mb-0 fw-medium">{{ user.dni|default:"No especificado" }}</p>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="text-secondary small">Correo Electrónico</label>
+                                <p class="mb-0 fw-medium">{{ user.email }}</p>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="text-secondary small">Teléfono Principal</label>
+                                <p class="mb-0 fw-medium">{{ user.telefono_principal|default:"No especificado" }}</p>
+                            </div>
+                        </div>
+
+                        {% if user.tipoUsuario == 'PACIENTE' %}
+                        <div class="mt-4 pt-3 border-top border-secondary">
+                            <h4 class="h5 mb-3"><i class="bi bi-activity text-danger me-2"></i>Telemetría IoT en Vivo</h4>
+                            <div class="glass-card p-3 text-center bg-dark bg-opacity-50">
+                                <p class="text-secondary small mb-2">Monitorización Constante de Dispositivos Vinculados</p>
+                                <img src="{% static 'imagenes/vital.gif' %}" alt="Telemetría en Vivo" class="img-fluid rounded shadow-sm" style="max-height: 200px; opacity: 0.9;">
+                                <div class="mt-3 d-flex justify-content-center gap-3">
+                                    <span class="badge bg-success bg-opacity-25 text-success border border-success"><i class="bi bi-check-circle me-1"></i>Sensores Conectados</span>
+                                    <span class="badge bg-primary bg-opacity-25 text-primary border border-primary">BPM: 72</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Tab Familiares -->
+                    {% if user.tipoUsuario == 'PACIENTE' %}
+                    <div class="tab-pane fade" id="familiares" role="tabpanel">
+                        
+                        {% if solicitudes %}
+                        <div class="alert alert-warning bg-warning bg-opacity-10 border-warning text-warning mb-4 shadow-sm">
+                            <h5 class="alert-heading h6"><i class="bi bi-bell-fill me-2"></i>Solicitudes Pendientes</h5>
+                            <p class="small mb-0">Las siguientes personas desean vincularse a tu cuenta como Familiares/Cuidadores.</p>
+                            <hr class="border-warning opacity-25">
+                            
+                            {% for sol in solicitudes %}
+                            <div class="d-flex justify-content-between align-items-center mt-3 bg-dark bg-opacity-50 p-3 rounded">
+                                <div>
+                                    <strong class="d-block text-white">{{ sol.usuario.get_full_name }}</strong>
+                                    <small class="text-muted d-block"><i class="bi bi-envelope"></i> {{ sol.usuario.email }}</small>
+                                    <small class="text-muted d-block"><i class="bi bi-person-vcard"></i> DNI: {{ sol.usuario.dni }} | <i class="bi bi-telephone"></i> Tel: {{ sol.usuario.telefono_principal }}</small>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <form method="post" action="{% url 'gestionar_solicitud_familiar' sol.id %}" style="display:inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" name="accion" value="aceptar" class="btn btn-sm btn-success px-3 hover-lift">Aceptar</button>
+                                        <button type="submit" name="accion" value="rechazar" class="btn btn-sm btn-outline-danger px-3 hover-lift">Rechazar</button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <h4 class="h5 mb-3 border-bottom border-secondary pb-2">Familiares Vinculados</h4>
+                        {% if familiares %}
+                            <div class="row g-3">
+                                {% for fam in familiares %}
+                                <div class="col-md-6">
+                                    <div class="glass-card p-3 d-flex align-items-center justify-content-between">
+                                        <div class="d-flex align-items-center gap-3">
+                                            <div class="bg-primary bg-opacity-25 rounded-circle p-2 text-primary">
+                                                <i class="bi bi-person-heart fs-4"></i>
+                                            </div>
+                                            <div>
+                                                <strong class="d-block">{{ fam.usuario.get_full_name }}</strong>
+                                                <span class="small text-secondary">{{ fam.usuario.telefono_principal|default:"Sin teléfono" }}</span>
+                                            </div>
+                                        </div>
+                                        <form method="post" action="{% url 'gestionar_solicitud_familiar' fam.id %}">
+                                            {% csrf_token %}
+                                            <button type="submit" name="accion" value="eliminar" class="btn btn-sm btn-outline-danger hover-lift" title="Desvincular Familiar"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-secondary text-center py-4">No tienes familiares vinculados a tu cuenta.</p>
+                        {% endif %}
+                        
+                    </div>
+                    {% endif %}
+
+                    <!-- Tab Configuración -->
+                    <div class="tab-pane fade" id="configuracion" role="tabpanel">
+                        <h4 class="h5 mb-3 border-bottom border-secondary pb-2">Preferencias</h4>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="notifEmail" checked>
+                            <label class="form-check-label" for="notifEmail">Recibir notificaciones por correo</label>
+                        </div>
+                        <div class="form-check form-switch mb-4">
+                            <input class="form-check-input" type="checkbox" id="notifSMS" checked>
+                            <label class="form-check-label" for="notifSMS">Recibir alertas SMS (Emergencias)</label>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

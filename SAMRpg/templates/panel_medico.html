@@ -3,22 +3,35 @@
 {% block content %}
 <div class="row">
     <div class="col-lg-12 mb-4">
-        <h2 class="h3 border-bottom pb-2" style="border-color: var(--glass-border) !important;">Panel del Especialista (Módulo 3)</h2>
+        <h2 class="h3 border-bottom pb-2" style="border-color: var(--glass-border) !important;">Panel del Especialista</h2>
     </div>
 
     <div class="col-lg-4">
         <div class="glass-card p-3 mb-4">
             <h5 class="mb-3">Ofertas de Emergencia</h5>
-            <div class="alert alert-warning border-0" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5;">
-                <strong>¡Alerta Crítica!</strong>
-                <p class="mb-1 text-sm">Paciente con posible arritmia detectada. Matching sugerido por IA.</p>
-                <button class="btn btn-sm btn-danger mt-2">Aceptar y Conectar</button>
-            </div>
-            <div class="alert border-0" style="background: rgba(255, 255, 255, 0.05); color: var(--text-color);">
-                <strong>Alerta Media</strong>
-                <p class="mb-1 text-sm text-light opacity-75">Paciente reporta dolor abdominal leve.</p>
-                <button class="btn btn-sm btn-outline-light mt-2">Revisar</button>
-            </div>
+            {% for triaje in triajes_pendientes %}
+                {% if triaje.nivel_alerta == 'critico' %}
+                <div class="alert alert-warning border-0" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5;">
+                    <strong>¡Alerta Crítica!</strong>
+                    <p class="mb-1 text-sm">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico }}</p>
+                    <button class="btn btn-sm btn-danger mt-2">Aceptar y Conectar</button>
+                </div>
+                {% elif triaje.nivel_alerta == 'medio' %}
+                <div class="alert border-0" style="background: rgba(255, 255, 255, 0.05); color: var(--text-color);">
+                    <strong>Alerta Media</strong>
+                    <p class="mb-1 text-sm text-light opacity-75">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico }}</p>
+                    <button class="btn btn-sm btn-outline-light mt-2">Revisar</button>
+                </div>
+                {% else %}
+                <div class="alert border-0" style="background: rgba(16, 185, 129, 0.1); color: #6ee7b7;">
+                    <strong>Baja Prioridad</strong>
+                    <p class="mb-1 text-sm text-light opacity-75">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico }}</p>
+                    <button class="btn btn-sm btn-outline-success mt-2">Ver Detalle</button>
+                </div>
+                {% endif %}
+            {% empty %}
+                <p class="text-muted text-sm">No hay ofertas de emergencia pendientes.</p>
+            {% endfor %}
         </div>
     </div>
 
@@ -49,5 +62,57 @@
             </div>
         </div>
     </div>
+    </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Conexión WebSocket
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const wsUrl = protocol + window.location.host + '/ws/dashboard/';
+        const socket = new WebSocket(wsUrl);
+        const alertsContainer = document.querySelector('.col-lg-4 .glass-card'); // Contenedor de ofertas
+
+        socket.onopen = function(e) {
+            console.log("[WebSocket] Conectado al Dashboard del Médico");
+        };
+
+        socket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            if (data.type === 'alerta_emergencia') {
+                const isCritical = data.nivel === 'critico';
+                
+                // Crear nueva alerta HTML
+                const newAlert = document.createElement('div');
+                newAlert.className = `alert border-0 ${isCritical ? 'alert-warning' : ''}`;
+                
+                if (isCritical) {
+                    newAlert.style.background = 'rgba(239, 68, 68, 0.2)';
+                    newAlert.style.color = '#fca5a5';
+                    newAlert.innerHTML = `
+                        <strong>¡Alerta Crítica!</strong>
+                        <p class="mb-1 text-sm">Paciente: ${data.paciente}. ${data.message}</p>
+                        <button class="btn btn-sm btn-danger mt-2">Aceptar y Conectar</button>
+                    `;
+                } else {
+                    newAlert.style.background = 'rgba(255, 255, 255, 0.05)';
+                    newAlert.style.color = 'var(--text-color)';
+                    newAlert.innerHTML = `
+                        <strong>Alerta Media</strong>
+                        <p class="mb-1 text-sm text-light opacity-75">Paciente: ${data.paciente}. ${data.message}</p>
+                        <button class="btn btn-sm btn-outline-light mt-2">Revisar</button>
+                    `;
+                }
+                
+                // Insertar justo después del h5
+                const header = alertsContainer.querySelector('h5');
+                header.insertAdjacentElement('afterend', newAlert);
+            }
+        };
+
+        socket.onclose = function(e) {
+            console.error('[WebSocket] Desconectado del servidor.');
+        };
+    });
+</script>
 {% endblock %}
