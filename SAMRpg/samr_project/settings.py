@@ -32,6 +32,14 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['*']
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://samr-ia.onrender.com',
+    'https://*.onrender.com'
+]
+
+# Le dice a Django que estamos detrás del proxy HTTPS de Render
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 
 # Application definition
 
