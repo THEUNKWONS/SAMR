@@ -320,6 +320,7 @@ def historial_clinico(request):
         
     return render(request, 'historial.html', {'historial': historial})
 
+# aqui se implemento la logica del backend para el bot conversacional de la historia US-1.4
 @login_required
 @verificado_required
 def chatbot_api(request):
@@ -372,6 +373,12 @@ def chatbot_api(request):
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             
             # Prompts y configuración
+            # --- Aquí apliqué la lógica de backend para la US-3.4 (Explicabilidad clara de la IA) ---
+            # --- Y para la US-4.5 (Bot de seguimiento para el paciente) ---
+            # A nivel de Prompt Engineering, para la US-4.5 configuro 'respuesta_paciente' 
+            # forzando al modelo a responder con un tono empático y sin jerga médica compleja, 
+            # dándole al paciente explicaciones claras sobre sus síntomas o alertas de salud.
+            # Para la US-3.4, exijo que el 'resumen_medico' incluya la justificación (XAI).
             system_instruction = (
                 f"Eres SAMR-IA, un asistente de triaje médico avanzado. "
                 f"Estás evaluando a un paciente con el siguiente contexto clínico anonimizado:\n"
