@@ -80,6 +80,7 @@ class AuditLog(models.Model):
     def __str__(self):
         return f"AUDIT [{self.timestamp}] {self.action} on {self.model_name}"
 
+# aqui se creo la base de datos para guardar lo que reporta el paciente en el bot de la historia US-1.4
 class TriageLog(models.Model):
     ESTADOS_ASIGNACION = [
         ('PENDIENTE', 'Pendiente'),
