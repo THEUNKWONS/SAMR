@@ -109,6 +109,11 @@ class Receta(models.Model):
     # Cifrado AES-256 para proteger el diagnóstico y medicamentos
     contenido = EncryptedTextField(blank=True, null=True)
     firmada = models.BooleanField(default=False)
+    
+    # SAMR-17: Campos para firma electrónica y validación
+    firma_digital = models.TextField(blank=True, null=True, help_text="Firma criptográfica del médico")
+    hash_documento = models.CharField(max_length=64, blank=True, null=True, help_text="SHA-256 del contenido original")
+    
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
