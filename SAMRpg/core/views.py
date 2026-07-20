@@ -385,6 +385,27 @@ def chatbot_api(request):
                     estado_asignacion='PENDIENTE'
                 )
                 
+                # --- SAMR-15: Derivación y Matching Inteligente ---
+                from .matching_engine import MatchingEngine
+                from .rag_engine import rag_engine
+                
+                # Obtener la categoría del primer protocolo sugerido (si existe) para matching de especialidad
+                categoria_sugerida = None
+                protocolos = rag_engine.recuperar_protocolos(user_message, top_k=1)
+                if protocolos:
+                    categoria_sugerida = protocolos[0].get('categoria')
+                    
+                medico_asignado = MatchingEngine.asignar_medico_a_triaje(triage_log, categoria_sugerida)
+                
+                if medico_asignado:
+                    resumen += f"\n\n[SISTEMA] Paciente derivado automáticamente al Dr/a. {medico_asignado.last_name}."
+                else:
+                    resumen += "\n\n[SISTEMA] No hay médicos disponibles en este momento. El caso ha sido encolado."
+                    
+                # Actualizar el TriageLog con el resumen extendido
+                triage_log.resumen_medico = resumen
+                triage_log.save()
+                
                 # 2. Auditoría ISO 27001 (Inmutabilidad con Hash)
                 audit_str = f"{paciente.id}-{user_message}-{nivel}-{time.time()}".encode('utf-8')
                 crypto_hash = hashlib.sha256(audit_str).hexdigest()

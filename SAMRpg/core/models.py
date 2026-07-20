@@ -48,10 +48,16 @@ class MedicoEspecialista(models.Model):
     especialidad = models.CharField(max_length=100)
     registro_profesional = models.CharField(max_length=50)
     firmaElectronica = models.TextField(blank=True, null=True)
+    # SAMR-15: Campos para matching inteligente
+    disponible = models.BooleanField(default=True)
+    carga_trabajo = models.IntegerField(default=0, help_text="Cantidad de pacientes activos asignados")
 
 class MedicoAsistente(models.Model):
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name='perfil_asistente')
     turno = models.CharField(max_length=50)
+    # SAMR-15: Campos para matching inteligente
+    disponible = models.BooleanField(default=True)
+    carga_trabajo = models.IntegerField(default=0, help_text="Cantidad de pacientes activos asignados")
 
 class EntidadCertificadora(models.Model):
     llavePublica = models.TextField()
@@ -91,6 +97,8 @@ class TriageLog(models.Model):
     respuesta_ia = models.TextField()
     resumen_medico = models.TextField()
     estado_asignacion = models.CharField(max_length=20, choices=ESTADOS_ASIGNACION, default='PENDIENTE')
+    # SAMR-15: Médico asignado por el matching inteligente
+    medico_asignado = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='triajes_asignados')
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
