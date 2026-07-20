@@ -105,3 +105,54 @@ class Receta(models.Model):
 
     def __str__(self):
         return f"Receta para {self.triaje.paciente.usuario.first_name} - Firmada: {self.firmada}"
+
+
+# --- SAMR-13: Modelos para Triaje RAG ---
+
+class MedicalProtocol(models.Model):
+    """Protocolo medico almacenado para consulta RAG durante el triaje automatizado."""
+    CATEGORIAS = [
+        ('Cardiovascular', 'Cardiovascular'),
+        ('Respiratorio', 'Respiratorio'),
+        ('Neurologico', 'Neurologico'),
+        ('Alergias', 'Alergias'),
+        ('Gastrointestinal', 'Gastrointestinal'),
+        ('Traumatologia', 'Traumatologia'),
+        ('Infeccioso', 'Infeccioso'),
+        ('Salud Mental', 'Salud Mental'),
+        ('Pediatrico', 'Pediatrico'),
+        ('General', 'General'),
+    ]
+    NIVELES = [
+        ('critico', 'Critico'),
+        ('medio', 'Medio'),
+        ('bajo', 'Bajo'),
+    ]
+    protocol_id = models.CharField(max_length=20, unique=True)
+    categoria = models.CharField(max_length=50, choices=CATEGORIAS)
+    titulo = models.CharField(max_length=200)
+    contenido = models.TextField(help_text="Guia clinica completa del protocolo")
+    nivel_sugerido = models.CharField(max_length=10, choices=NIVELES)
+    palabras_clave = models.TextField(help_text="Palabras clave separadas por coma")
+    activo = models.BooleanField(default=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"[{self.protocol_id}] {self.titulo} ({self.categoria})"
+
+    class Meta:
+        ordering = ['categoria', 'protocol_id']
+
+
+class RAGQueryLog(models.Model):
+    """Registro de consultas RAG realizadas durante el triaje para trazabilidad."""
+    triaje = models.ForeignKey(TriageLog, on_delete=models.CASCADE, related_name='rag_queries', null=True, blank=True)
+    sintomas_query = models.TextField(help_text="Sintomas enviados al motor RAG")
+    protocolos_recuperados = models.TextField(help_text="IDs de protocolos recuperados")
+    nivel_sugerido_rag = models.CharField(max_length=10)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"RAG Query [{self.nivel_sugerido_rag}] - {self.timestamp}"
+
