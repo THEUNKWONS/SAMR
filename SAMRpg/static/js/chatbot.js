@@ -65,24 +65,24 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             body: JSON.stringify({ message: text })
         })
-        .then(response => response.json())
-        .then(data => {
-            // Remove loading msg
-            const loadingMsg = document.querySelector('.loading-msg');
-            if (loadingMsg) loadingMsg.remove();
+            .then(response => response.json())
+            .then(data => {
+                // Remove loading msg
+                const loadingMsg = document.querySelector('.loading-msg');
+                if (loadingMsg) loadingMsg.remove();
 
-            if (data.status === 'success') {
-                appendMessage('bot', data.reply);
-            } else {
-                appendMessage('bot', 'Error de conexión con la red neuronal.');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            const loadingMsg = document.querySelector('.loading-msg');
-            if (loadingMsg) loadingMsg.remove();
-            appendMessage('bot', 'Error de red.');
-        });
+                if (data.status === 'success') {
+                    appendMessage('bot', data.reply);
+                } else {
+                    appendMessage('bot', 'Error de conexión con la red neuronal.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                const loadingMsg = document.querySelector('.loading-msg');
+                if (loadingMsg) loadingMsg.remove();
+                appendMessage('bot', 'Error de red.');
+            });
     };
 
     sendBtn.addEventListener('click', sendMessage);
@@ -102,24 +102,24 @@ document.addEventListener('DOMContentLoaded', () => {
             recognition.interimResults = false;
             recognition.maxAlternatives = 1;
 
-            recognition.onstart = function() {
+            recognition.onstart = function () {
                 micBtn.style.color = 'red';
                 chatInput.placeholder = "Escuchando...";
             };
 
-            recognition.onresult = function(event) {
+            recognition.onresult = function (event) {
                 const speechResult = event.results[0][0].transcript;
                 chatInput.value = speechResult;
                 sendMessage();
             };
 
-            recognition.onspeechend = function() {
+            recognition.onspeechend = function () {
                 recognition.stop();
                 micBtn.style.color = '';
                 chatInput.placeholder = "Escribe tu mensaje...";
             };
 
-            recognition.onerror = function(event) {
+            recognition.onerror = function (event) {
                 console.error("Speech recognition error", event.error);
                 micBtn.style.color = '';
                 chatInput.placeholder = "Escribe tu mensaje...";
@@ -152,11 +152,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const wsUrl = protocol + window.location.host + '/ws/paciente/';
     const socket = new WebSocket(wsUrl);
 
-    socket.onopen = function(e) {
+    socket.onopen = function (e) {
         console.log("[WebSocket] Conectado al canal del paciente");
     };
 
-    socket.onmessage = function(e) {
+    socket.onmessage = function (e) {
         const data = JSON.parse(e.data);
         if (data.type === 'medico_conectado') {
             appendMessage('bot', '✅ ' + data.message);
@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    socket.onclose = function(e) {
+    socket.onclose = function (e) {
         console.log("[WebSocket] Desconectado del canal del paciente");
     };
 });
