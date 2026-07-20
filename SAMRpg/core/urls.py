@@ -23,4 +23,8 @@ urlpatterns = [
     path('api/triaje/<int:triaje_id>/generar_receta/', views.generar_receta, name='generar_receta'),
     path('api/triaje/<int:triaje_id>/firmar_receta/', views.firmar_receta, name='firmar_receta'),
     path('api/receta/<int:receta_id>/validar/', views.validar_receta, name='validar_receta'),
+    
+    # Interoperabilidad FHIR (SAMR-22)
+    path('api/fhir/paciente/<int:paciente_id>/', views.exportar_fhir_paciente, name='exportar_fhir_paciente'),
+    path('api/fhir/triaje/<int:triaje_id>/', views.exportar_fhir_triaje, name='exportar_fhir_triaje'),
 ]

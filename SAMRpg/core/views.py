@@ -613,3 +613,49 @@ def validar_receta(request, receta_id):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
             
     return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+@login_required
+def exportar_fhir_paciente(request, paciente_id):
+    """
+    SAMR-22: Exporta los datos del paciente en formato estándar HL7 FHIR v4.
+    Permite la interoperabilidad con sistemas externos (ej. MSP).
+    """
+    if request.method == 'GET':
+        try:
+            from .models import Paciente
+            from .fhir_interoperability import FHIREngine
+            
+            # Verificación de permisos (MVP simplificado: asume que médicos o el propio paciente pueden verlo)
+            paciente = Paciente.objects.get(id=paciente_id)
+            
+            fhir_data = FHIREngine.export_patient_to_fhir(paciente)
+            return JsonResponse(fhir_data, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 2})
+            
+        except Paciente.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Paciente no encontrado'}, status=404)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+            
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+@login_required
+def exportar_fhir_triaje(request, triaje_id):
+    """
+    SAMR-22: Exporta el historial de un encuentro clínico (Triaje) en formato HL7 FHIR Bundle.
+    """
+    if request.method == 'GET':
+        try:
+            from .models import TriageLog
+            from .fhir_interoperability import FHIREngine
+            
+            triaje = TriageLog.objects.get(id=triaje_id)
+            fhir_bundle = FHIREngine.export_clinical_encounter_to_fhir(triaje)
+            
+            return JsonResponse(fhir_bundle, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 2})
+            
+        except TriageLog.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Triaje no encontrado'}, status=404)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+            
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
