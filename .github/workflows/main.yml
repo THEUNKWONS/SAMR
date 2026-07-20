@@ -1,4 +1,4 @@
-name: Claude PR Reviewer
+name: ChatGPT PR Reviewer
 
 on:
   pull_request:
@@ -17,8 +17,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Ejecutar revisión con Claude
-        uses: di-sukharev/claude-pr-reviewer@master
+      - name: Ejecutar revisión con ChatGPT
+        uses: anc95/ChatGPT-CodeReview@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LANGUAGE: Spanish
+          # Opcional: Le decimos que se enfoque en Python y Django
+          MODEL: gpt-4o-mini
