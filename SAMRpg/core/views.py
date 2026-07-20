@@ -400,6 +400,26 @@ def chatbot_api(request):
             resumen = ai_data.get('resumen_medico', 'Síntomas generales.')
             
             # 1. Registrar Triaje en Base de Datos (Persistencia)
+            # SAMR-48-US-4.7: Como arquitecta, este es el punto lógico donde se
+            # materializa el EHR unificado mínimo asociado a un triaje. No se
+            # debe realizar una exportación síncrona y bloqueante desde la
+            # petición web. En su lugar la arquitectura debe:
+            # - Construir un DTO/Envelope minimal (identificador paciente,
+            #   timestamp, resumen_medico, sintomas_reportados, nivel_alerta,
+            #   referencias a registros cifrados) listo para mapear a FHIR (R4).
+            # - Validar consentimiento y políticas de compartición antes de
+            #   publicar (consentimiento explícito del paciente o reglas DPO).
+            # - Publicar el evento en una cola de eventos seguro (RabbitMQ/Kafka)
+            #   para un proceso asíncrono de transformación y entrega hacia
+            #   MSP/IESS (con adaptador que convierte a FHIR/HL7 según spec).
+            # - Asegurar logging, trazabilidad y WORM audit (AuditLog ya
+            #   existente) y que la transferencia final use mTLS / OAuth2 JWT
+            #   con encriptación en tránsito (TLS1.3) y en reposo (AES-256).
+            # - Implementar idempotencia y mecanismos de retry con backoff en
+            #   el worker que entrega al Registro Nacional de Salud.
+            # Esta aproximación mantiene la petición del usuario rápida y
+            # delega la complejidad de interoperabilidad a un componente
+            # especializado y testeable fuera del request/response.
             if paciente:
                 triage_log = TriageLog.objects.create(
                     paciente=paciente,
