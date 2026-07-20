@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatInput = document.getElementById('chat-input');
     const chatMessages = document.getElementById('chat-messages');
 
-    // SAMR-28-US-1.6: Edge AI / offline-first. Guardar localmente los síntomas cuando no hay red y reenviar al reconectar.
+    // SAMR-28-US-1.6: Edge AI/offline-first. Guardar localmente los síntomas cuando no hay red y reenviar al reconectar.
     const offlineQueueKey = 'samr-offline-symptoms-queue';
 
     const getOfflineQueue = () => {
