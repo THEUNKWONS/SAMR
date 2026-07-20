@@ -2,6 +2,8 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse
 import json
 import time
+import hashlib
+import functools
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.conf import settings
@@ -14,14 +16,32 @@ from django.core.mail import send_mail
 from .models import Usuario, Paciente, Familiar, TriageLog, AuditLog
 from .forms import RegistroForm
 import random
-import time
 from datetime import date
-import hashlib
 
 def rol_requerido(roles_permitidos):
+    """Decorador de control de acceso basado en roles (RBAC).
+    Registra intentos de acceso no autorizado en el AuditLog (ISO 27001)."""
     def decorator(view_func):
+        @functools.wraps(view_func)
         def wrapper(request, *args, **kwargs):
             if request.user.tipoUsuario not in roles_permitidos:
+                # Registrar acceso denegado en AuditLog
+                try:
+                    ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '0.0.0.0'))
+                    if ',' in ip:
+                        ip = ip.split(',')[0].strip()
+                    raw = f"ACCESS_DENIED|{request.user.id}|{request.path}|{time.time()}".encode('utf-8')
+                    crypto_hash = hashlib.sha256(raw).hexdigest()
+                    AuditLog.objects.create(
+                        user_id=request.user.id,
+                        ip_address=ip,
+                        action=f"ACCESO DENEGADO: Usuario {request.user.username} (rol: {request.user.tipoUsuario}) intentó acceder a {request.path}. Roles permitidos: {roles_permitidos}",
+                        model_name="AccessControl",
+                        object_id=request.path,
+                        cryptographic_hash=crypto_hash,
+                    )
+                except Exception:
+                    pass
                 messages.error(request, "Acceso denegado: No tienes permisos para ver esta página.")
                 return redirect('inicio')
             return view_func(request, *args, **kwargs)
@@ -30,6 +50,7 @@ def rol_requerido(roles_permitidos):
 
 def verificado_required(view_func):
     """Decorador para bloquear acceso a Familiares con estado PENDIENTE."""
+    @functools.wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if request.user.tipoUsuario == 'FAMILIAR':
             try:
@@ -37,7 +58,7 @@ def verificado_required(view_func):
                 if familiar.estado_solicitud == 'PENDIENTE':
                     messages.error(request, "Tu cuenta debe ser verificada por el paciente antes de acceder a esta sección.")
                     return redirect('inicio')
-            except:
+            except Exception:
                 pass
         return view_func(request, *args, **kwargs)
     return wrapper
@@ -49,8 +70,27 @@ def login_view(request):
     if request.method == 'POST':
         u = request.POST.get('username')
         p = request.POST.get('password')
+        ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '0.0.0.0'))
+        if ',' in ip:
+            ip = ip.split(',')[0].strip()
+
         user = authenticate(request, username=u, password=p)
         if user is not None:
+            # Registrar login exitoso en AuditLog
+            try:
+                raw = f"LOGIN_SUCCESS|{user.id}|{ip}|{time.time()}".encode('utf-8')
+                crypto_hash = hashlib.sha256(raw).hexdigest()
+                AuditLog.objects.create(
+                    user_id=user.id,
+                    ip_address=ip,
+                    action=f"LOGIN EXITOSO: {user.username} ({user.tipoUsuario}) desde IP {ip}",
+                    model_name="Authentication",
+                    object_id=str(user.id),
+                    cryptographic_hash=crypto_hash,
+                )
+            except Exception:
+                pass
+
             # Generar OTP de 6 dígitos
             otp = str(random.randint(100000, 999999))
             request.session['pre_otp_user'] = user.id
@@ -72,6 +112,19 @@ def login_view(request):
             messages.success(request, 'Código OTP enviado a tu correo.')
             return redirect('otp_verify')
         else:
+            # Registrar intento fallido en AuditLog
+            try:
+                raw = f"LOGIN_FAILED|{u}|{ip}|{time.time()}".encode('utf-8')
+                crypto_hash = hashlib.sha256(raw).hexdigest()
+                AuditLog.objects.create(
+                    ip_address=ip,
+                    action=f"LOGIN FALLIDO: Intento con usuario '{u}' desde IP {ip}",
+                    model_name="Authentication",
+                    object_id=u or 'desconocido',
+                    cryptographic_hash=crypto_hash,
+                )
+            except Exception:
+                pass
             messages.error(request, 'Credenciales inválidas.')
     return render(request, 'auth/login.html')
 
