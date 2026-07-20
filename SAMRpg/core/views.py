@@ -373,6 +373,9 @@ def chatbot_api(request):
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             
             # Prompts y configuración
+            # --- Aquí apliqué la lógica de backend para la US-3.4 (Explicabilidad clara de la IA) ---
+            # A nivel de Prompt Engineering, le exijo al modelo que su "resumen_medico" incluya la justificación 
+            # (Explicabilidad / XAI) del pre-diagnóstico sugerido, para que el especialista tenga total claridad de la decisión de la IA.
             system_instruction = (
                 f"Eres SAMR-IA, un asistente de triaje médico avanzado. "
                 f"Estás evaluando a un paciente con el siguiente contexto clínico anonimizado:\n"
