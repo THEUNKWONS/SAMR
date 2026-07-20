@@ -239,6 +239,7 @@ def historial_clinico(request):
         
     return render(request, 'historial.html', {'historial': historial})
 
+# aqui se implemento la logica del backend para el bot conversacional de la historia US-1.4
 @login_required
 @verificado_required
 def chatbot_api(request):
