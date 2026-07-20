@@ -22,7 +22,8 @@ self.addEventListener('fetch', event => {
       .then(response => {
         // Return cache hit or fetch from network
         return response || fetch(event.request).catch(() => {
-          // Si falla la red (Offline), podríamos devolver un fallback de Edge AI aquí
+          // SAMR-28-US-1.6: fallback offline donde la app puede conservar el estado,
+          // soportar el concepto de Edge AI y ofrecer mensajes básicos cuando la red no está disponible.
           return new Response(JSON.stringify({ status: 'error', reply: 'Estás sin conexión. El Edge AI básico indica que si tienes dolor de pecho, busques ayuda inmediata.' }), {
             headers: { 'Content-Type': 'application/json' }
           });

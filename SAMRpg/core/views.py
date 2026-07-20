@@ -2,6 +2,8 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse
 import json
 import time
+import hashlib
+import functools
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.conf import settings
@@ -14,14 +16,60 @@ from django.core.mail import send_mail
 from .models import Usuario, Paciente, Familiar, TriageLog, AuditLog
 from .forms import RegistroForm
 import random
-import time
 from datetime import date
-import hashlib
+import re
+
+def ofuscar_pii(texto, usuario):
+    """
+    US-4.1: Enmascara (tokeniza) los datos PII del paciente (Nombre, Apellidos, DNI)
+    para proteger su privacidad antes de enviar información a servicios de terceros (IA).
+    """
+    if not texto or not usuario:
+        return texto
+        
+    texto_seguro = str(texto)
+    
+    if getattr(usuario, 'dni', None):
+        texto_seguro = texto_seguro.replace(usuario.dni, "[DNI_PROTEGIDO]")
+        
+    if getattr(usuario, 'first_name', None):
+        for word in usuario.first_name.split():
+            if len(word) > 2: # Evitar reemplazar conectores cortos
+                pattern = re.compile(re.escape(word), re.IGNORECASE)
+                texto_seguro = pattern.sub("[NOMBRE_PROTEGIDO]", texto_seguro)
+                
+    if getattr(usuario, 'last_name', None):
+        for word in usuario.last_name.split():
+            if len(word) > 2:
+                pattern = re.compile(re.escape(word), re.IGNORECASE)
+                texto_seguro = pattern.sub("[APELLIDO_PROTEGIDO]", texto_seguro)
+                
+    return texto_seguro
 
 def rol_requerido(roles_permitidos):
+    """Decorador de control de acceso basado en roles (RBAC).
+    Registra intentos de acceso no autorizado en el AuditLog (ISO 27001)."""
     def decorator(view_func):
+        @functools.wraps(view_func)
         def wrapper(request, *args, **kwargs):
             if request.user.tipoUsuario not in roles_permitidos:
+                # Registrar acceso denegado en AuditLog
+                try:
+                    ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '0.0.0.0'))
+                    if ',' in ip:
+                        ip = ip.split(',')[0].strip()
+                    raw = f"ACCESS_DENIED|{request.user.id}|{request.path}|{time.time()}".encode('utf-8')
+                    crypto_hash = hashlib.sha256(raw).hexdigest()
+                    AuditLog.objects.create(
+                        user_id=request.user.id,
+                        ip_address=ip,
+                        action=f"ACCESO DENEGADO: Usuario {request.user.username} (rol: {request.user.tipoUsuario}) intentó acceder a {request.path}. Roles permitidos: {roles_permitidos}",
+                        model_name="AccessControl",
+                        object_id=request.path,
+                        cryptographic_hash=crypto_hash,
+                    )
+                except Exception:
+                    pass
                 messages.error(request, "Acceso denegado: No tienes permisos para ver esta página.")
                 return redirect('inicio')
             return view_func(request, *args, **kwargs)
@@ -30,6 +78,7 @@ def rol_requerido(roles_permitidos):
 
 def verificado_required(view_func):
     """Decorador para bloquear acceso a Familiares con estado PENDIENTE."""
+    @functools.wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if request.user.tipoUsuario == 'FAMILIAR':
             try:
@@ -37,7 +86,7 @@ def verificado_required(view_func):
                 if familiar.estado_solicitud == 'PENDIENTE':
                     messages.error(request, "Tu cuenta debe ser verificada por el paciente antes de acceder a esta sección.")
                     return redirect('inicio')
-            except:
+            except Exception:
                 pass
         return view_func(request, *args, **kwargs)
     return wrapper
@@ -49,8 +98,27 @@ def login_view(request):
     if request.method == 'POST':
         u = request.POST.get('username')
         p = request.POST.get('password')
+        ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '0.0.0.0'))
+        if ',' in ip:
+            ip = ip.split(',')[0].strip()
+
         user = authenticate(request, username=u, password=p)
         if user is not None:
+            # Registrar login exitoso en AuditLog
+            try:
+                raw = f"LOGIN_SUCCESS|{user.id}|{ip}|{time.time()}".encode('utf-8')
+                crypto_hash = hashlib.sha256(raw).hexdigest()
+                AuditLog.objects.create(
+                    user_id=user.id,
+                    ip_address=ip,
+                    action=f"LOGIN EXITOSO: {user.username} ({user.tipoUsuario}) desde IP {ip}",
+                    model_name="Authentication",
+                    object_id=str(user.id),
+                    cryptographic_hash=crypto_hash,
+                )
+            except Exception:
+                pass
+
             # Generar OTP de 6 dígitos
             otp = str(random.randint(100000, 999999))
             request.session['pre_otp_user'] = user.id
@@ -72,6 +140,19 @@ def login_view(request):
             messages.success(request, 'Código OTP enviado a tu correo.')
             return redirect('otp_verify')
         else:
+            # Registrar intento fallido en AuditLog
+            try:
+                raw = f"LOGIN_FAILED|{u}|{ip}|{time.time()}".encode('utf-8')
+                crypto_hash = hashlib.sha256(raw).hexdigest()
+                AuditLog.objects.create(
+                    ip_address=ip,
+                    action=f"LOGIN FALLIDO: Intento con usuario '{u}' desde IP {ip}",
+                    model_name="Authentication",
+                    object_id=u or 'desconocido',
+                    cryptographic_hash=crypto_hash,
+                )
+            except Exception:
+                pass
             messages.error(request, 'Credenciales inválidas.')
     return render(request, 'auth/login.html')
 
@@ -278,6 +359,16 @@ def chatbot_api(request):
                 
                 contexto_clinico = f"Edad: {edad} años. Sexo: {sexo}. Historial Clínico: {historial}. Alergias: {alergias}. Telemetría actual: {telemetria_info}."
 
+            # --- US-4.1 Protección de Privacidad PII ---
+            # Ofuscamos el mensaje del usuario y su contexto clínico antes de enviarlo a la IA
+            user_message_clean = user_message
+            contexto_clinico_clean = contexto_clinico
+            
+            if paciente and paciente.usuario:
+                user_message_clean = ofuscar_pii(user_message, paciente.usuario)
+                contexto_clinico_clean = ofuscar_pii(contexto_clinico, paciente.usuario)
+            # ---------------------------------------------
+            
             # Inicializar cliente OpenAI
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             
@@ -285,7 +376,7 @@ def chatbot_api(request):
             system_instruction = (
                 f"Eres SAMR-IA, un asistente de triaje médico avanzado. "
                 f"Estás evaluando a un paciente con el siguiente contexto clínico anonimizado:\n"
-                f"{contexto_clinico}\n\n"
+                f"{contexto_clinico_clean}\n\n"
                 "Analiza los síntomas del paciente basándote estrictamente en este contexto y devuelve SIEMPRE un JSON válido con la siguiente estructura exacta: "
                 "{"
                 "  \"nivel_alerta\": \"critico\" (para emergencias vitales inminentes como dolor de pecho, riesgo de desmayo, pérdida de consciencia, sangrado severo, dificultad para respirar o alergias graves), \"medio\" (infecciones, dolor agudo sin riesgo de vida inmediato) o \"bajo\" (consultas generales, síntomas leves); "
@@ -298,7 +389,7 @@ def chatbot_api(request):
                 model='gpt-4o-mini',
                 messages=[
                     {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_message}
+                    {"role": "user", "content": user_message_clean}
                 ],
                 response_format={"type": "json_object"}
             )
@@ -310,6 +401,26 @@ def chatbot_api(request):
             resumen = ai_data.get('resumen_medico', 'Síntomas generales.')
             
             # 1. Registrar Triaje en Base de Datos (Persistencia)
+            # SAMR-48-US-4.7: Como arquitecta, este es el punto lógico donde se
+            # materializa el EHR unificado mínimo asociado a un triaje. No se
+            # debe realizar una exportación síncrona y bloqueante desde la
+            # petición web. En su lugar la arquitectura debe:
+            # - Construir un DTO/Envelope minimal (identificador paciente,
+            #   timestamp, resumen_medico, sintomas_reportados, nivel_alerta,
+            #   referencias a registros cifrados) listo para mapear a FHIR (R4).
+            # - Validar consentimiento y políticas de compartición antes de
+            #   publicar (consentimiento explícito del paciente o reglas DPO).
+            # - Publicar el evento en una cola de eventos seguro (RabbitMQ/Kafka)
+            #   para un proceso asíncrono de transformación y entrega hacia
+            #   MSP/IESS (con adaptador que convierte a FHIR/HL7 según spec).
+            # - Asegurar logging, trazabilidad y WORM audit (AuditLog ya
+            #   existente) y que la transferencia final use mTLS / OAuth2 JWT
+            #   con encriptación en tránsito (TLS1.3) y en reposo (AES-256).
+            # - Implementar idempotencia y mecanismos de retry con backoff en
+            #   el worker que entrega al Registro Nacional de Salud.
+            # Esta aproximación mantiene la petición del usuario rápida y
+            # delega la complejidad de interoperabilidad a un componente
+            # especializado y testeable fuera del request/response.
             if paciente:
                 triage_log = TriageLog.objects.create(
                     paciente=paciente,
@@ -411,11 +522,15 @@ def generar_receta(request, triaje_id):
             # Inicializar cliente OpenAI
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             
+            # --- US-4.1 Protección de Privacidad PII ---
+            resumen_medico_clean = ofuscar_pii(triaje.resumen_medico, triaje.paciente.usuario)
+            sintomas_reportados_clean = ofuscar_pii(triaje.sintomas_reportados, triaje.paciente.usuario)
+            
             prompt = (
                 f"Eres SAMR-IA asistiéndole al Dr. {request.user.get_full_name()}. "
                 f"Genera una Receta Médica y un Plan de Tratamiento formal basado en este triaje:\n"
-                f"Resumen médico: {triaje.resumen_medico}\n"
-                f"Síntomas reportados: {triaje.sintomas_reportados}\n"
+                f"Resumen médico: {resumen_medico_clean}\n"
+                f"Síntomas reportados: {sintomas_reportados_clean}\n"
                 f"Devuelve SOLO el texto de la receta y tratamiento en formato markdown, listo para ser firmado."
             )
             
