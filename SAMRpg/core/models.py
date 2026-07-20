@@ -59,6 +59,15 @@ class EntidadCertificadora(models.Model):
 
 class Telemetria(models.Model):
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
+    # SAMR-45-US-4.4: este modelo representa la telemetría IoT que alimenta al motor
+    # ML predictivo. Aquí se almacena la carga de datos en reposo, el umbral de
+    # anomalía asociado y el estado de procesamiento del análisis.
+    #
+    # Como arquitecta de software, defino esta entidad como el punto de frontera
+    # entre la ingestión de sensores, el scoring de umbrales y la alerta temprana
+    # al equipo médico. La lógica de ML debe evaluar estos datos de manera
+    # asíncrona y publicar eventos críticos a través del canal de notificaciones
+    # en tiempo real, manteniendo separación clara entre datos, cálculo y notificación.
     # Cifrado AES-256 Real para telemetría en reposo
     datosTelemetria = EncryptedJSONField(blank=True, null=True)
     umbralAnomalia = models.CharField(max_length=50)

@@ -133,6 +133,9 @@ document.addEventListener('DOMContentLoaded', () => {
         appendMessage('user', text);
         chatInput.value = '';
 
+        // SAMR-32-US-2.4: En la arquitectura, este cliente debe empaquetar la telemetría inmediata de los sensores IoT
+        // junto con los síntomas antes de invocar al motor LLM / endpoint de triaje. Es una responsabilidad de Edge
+        // AI conectar datos locales de IoT con el mensaje clínico para mejorar la inferencia y el contexto.
         // Bot response (API Fetch)
         appendMessage('bot', '...', 'loading-msg'); // Loading indicator
 
