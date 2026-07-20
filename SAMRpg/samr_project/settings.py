@@ -64,6 +64,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # SAMR-9: Middleware de Gestión de Identidad y Acceso
+    'core.middleware.BruteForceProtectionMiddleware',
+    'core.middleware.SessionSecurityMiddleware',
+    'core.middleware.AccessAuditMiddleware',
 ]
 
 ROOT_URLCONF = 'samr_project.urls'
@@ -159,3 +163,24 @@ LOGIN_URL = 'login'
 # Configuración de Correo Electrónico (Simulado para Desarrollo)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_HOST_USER = 'no-reply@samria.com'
+
+# ============================================================
+# SAMR-9: Configuración de Gestión de Identidad y Acceso
+# ============================================================
+
+# Timeout de sesión por inactividad (en minutos)
+SESSION_TIMEOUT_MINUTES = 15
+
+# Protección contra fuerza bruta
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION_MINUTES = 15
+
+# Seguridad de cookies de sesión
+SESSION_COOKIE_HTTPONLY = True       # Impide acceso a la cookie desde JavaScript
+SESSION_COOKIE_AGE = 900             # 15 minutos en segundos
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Sesión expira al cerrar navegador
+SESSION_COOKIE_SAMESITE = 'Lax'      # Protección contra CSRF por cookies
+
+# En producción (HTTPS), descomentar:
+# SESSION_COOKIE_SECURE = True
+# CSRF_COOKIE_SECURE = True
