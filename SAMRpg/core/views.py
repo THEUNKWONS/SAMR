@@ -91,26 +91,38 @@ def login_view(request):
             except Exception:
                 pass
 
-            # Generar OTP de 6 dígitos
-            otp = str(random.randint(100000, 999999))
-            request.session['pre_otp_user'] = user.id
-            request.session['otp_code'] = otp
-            request.session['otp_timestamp'] = time.time()
-            
-            # Enviar correo (En desarrollo se imprime en consola)
-            try:
-                send_mail(
-                    'Código de Verificación - SAMR-IA',
-                    f'Hola {user.first_name},\n\nTu código de verificación de 6 dígitos es: {otp}\n\nEste código expirará en 5 minutos.',
-                    'no-reply@samria.com',
-                    [user.email],
-                    fail_silently=False,
-                )
-            except Exception as e:
-                print(f"[ERROR CORREO] {str(e)}. Código generado: {otp}")
+            # --- Lógica de 2FA (Doble Factor) Exclusiva para Especialistas ---
+            # Para garantizar la seguridad del panel médico, se requiere OTP solo para MEDICO_ESPECIALISTA.
+            if user.tipoUsuario == 'MEDICO_ESPECIALISTA':
+                # Generar OTP de 6 dígitos
+                otp = str(random.randint(100000, 999999))
+                request.session['pre_otp_user'] = user.id
+                request.session['otp_code'] = otp
+                request.session['otp_timestamp'] = time.time()
                 
-            messages.success(request, 'Código OTP enviado a tu correo.')
-            return redirect('otp_verify')
+                # Enviar correo (En desarrollo se imprime en consola si falla)
+                try:
+                    send_mail(
+                        'Código de Verificación - SAMR-IA',
+                        f'Hola {user.first_name},\n\nTu código de verificación de 6 dígitos es: {otp}\n\nEste código expirará en 5 minutos.',
+                        'no-reply@samria.com',
+                        [user.email],
+                        fail_silently=False,
+                    )
+                except Exception as e:
+                    print(f"[ERROR CORREO] {str(e)}. Código generado: {otp}")
+                    
+                messages.success(request, 'Código OTP enviado a tu correo. Por seguridad, requerimos doble factor.')
+                return redirect('otp_verify')
+            else:
+                # --- Autenticación Estándar para otros roles ---
+                # Roles como PACIENTE, FAMILIAR, etc. entran de manera directa.
+                login(request, user)
+                messages.success(request, f'¡Bienvenido de nuevo, {user.first_name}!')
+                
+                if not user.acepto_terminos_lopdp:
+                    return redirect('terminos_lopdp')
+                return redirect('inicio')
         else:
             # Registrar intento fallido en AuditLog
             try:
