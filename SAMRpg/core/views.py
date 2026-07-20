@@ -534,9 +534,16 @@ def firmar_receta(request, triaje_id):
         try:
             triaje = TriageLog.objects.get(id=triaje_id)
             from .models import Receta
+            from .prescription_engine import PrescriptionEngine
             receta = Receta.objects.get(triaje=triaje)
             
+            # Generar hash y firma criptográfica
+            hash_doc = PrescriptionEngine.generar_hash_documento(receta.contenido)
+            firma = PrescriptionEngine.firmar_receta(request.user.id, hash_doc)
+            
             receta.firmada = True
+            receta.hash_documento = hash_doc
+            receta.firma_digital = firma
             receta.save()
             
             # Auditoría
@@ -562,7 +569,47 @@ def firmar_receta(request, triaje_id):
                 }
             )
             
-            return JsonResponse({'status': 'success', 'message': 'Receta firmada y enviada al paciente.'})
+            return JsonResponse({'status': 'success', 'message': 'Receta firmada y enviada al paciente.', 'firma_digital': firma})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+@login_required
+def validar_receta(request, receta_id):
+    """
+    SAMR-17: Endpoint para que un paciente o farmacia valide la autenticidad 
+    e integridad de la receta usando la firma digital.
+    """
+    if request.method == 'GET':
+        try:
+            from .models import Receta
+            from .prescription_engine import PrescriptionEngine
+            
+            receta = Receta.objects.get(id=receta_id)
+            if not receta.firmada or not receta.firma_digital:
+                return JsonResponse({'status': 'error', 'message': 'La receta no ha sido firmada electrónicamente.'}, status=400)
+                
+            medico_id = receta.triaje.medico_asignado.id if receta.triaje.medico_asignado else None
+            if not medico_id:
+                return JsonResponse({'status': 'error', 'message': 'No se encontró el médico asignado a esta receta.'}, status=400)
+                
+            # Validar la firma criptográfica
+            es_valida = PrescriptionEngine.validar_receta(medico_id, receta.contenido, receta.firma_digital)
+            
+            if es_valida:
+                return JsonResponse({
+                    'status': 'success', 
+                    'message': 'Receta válida y auténtica. El contenido no ha sido alterado.',
+                    'integridad': 'VERIFICADA'
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Firma inválida o el contenido de la receta ha sido alterado.',
+                    'integridad': 'COMPROMETIDA'
+                }, status=400)
+                
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+            
     return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
