@@ -330,19 +330,32 @@ def chatbot_api(request):
                 
                 contexto_clinico = f"Edad: {edad} años. Sexo: {sexo}. Historial Clínico: {historial}. Alergias: {alergias}. Telemetría actual: {telemetria_info}."
 
+            # --- SAMR-13: Integración RAG para Triaje Automatizado ---
+            from .rag_engine import rag_engine
+
+            # Recuperar protocolos médicos relevantes basados en los síntomas
+            contexto_rag = rag_engine.construir_contexto_rag(user_message, top_k=3)
+            nivel_sugerido_rag = rag_engine.obtener_nivel_sugerido(user_message)
+
             # Inicializar cliente OpenAI
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             
-            # Prompts y configuración
+            # Prompts y configuración enriquecidos con RAG
             system_instruction = (
-                f"Eres SAMR-IA, un asistente de triaje médico avanzado. "
+                f"Eres SAMR-IA, un asistente de triaje médico avanzado con acceso a protocolos clínicos. "
                 f"Estás evaluando a un paciente con el siguiente contexto clínico anonimizado:\n"
                 f"{contexto_clinico}\n\n"
-                "Analiza los síntomas del paciente basándote estrictamente en este contexto y devuelve SIEMPRE un JSON válido con la siguiente estructura exacta: "
+                f"Además, se han recuperado los siguientes protocolos clínicos relevantes mediante RAG "
+                f"(Retrieval-Augmented Generation) para guiar tu evaluación:\n\n"
+                f"{contexto_rag}\n\n"
+                f"El nivel de alerta sugerido por los protocolos clínicos es: {nivel_sugerido_rag.upper()}. "
+                f"Usa esta referencia pero ajusta según la gravedad real de los síntomas.\n\n"
+                "Analiza los síntomas del paciente basándote en el contexto clínico Y los protocolos recuperados. "
+                "Devuelve SIEMPRE un JSON válido con la siguiente estructura exacta: "
                 "{"
                 "  \"nivel_alerta\": \"critico\" (para emergencias vitales inminentes como dolor de pecho, riesgo de desmayo, pérdida de consciencia, sangrado severo, dificultad para respirar o alergias graves), \"medio\" (infecciones, dolor agudo sin riesgo de vida inmediato) o \"bajo\" (consultas generales, síntomas leves); "
                 "  \"respuesta_paciente\": \"Mensaje empático, claro y directo. Si es crítico o medio, debes informarle al paciente que has emitido una ALERTA INMEDIATA al panel de los médicos y que un especialista se conectará con él en breve a través de la plataforma para una teleconsulta. No lo mandes a llamar al 911, asume que nuestra plataforma gestionará la emergencia.\"; "
-                "  \"resumen_medico\": \"Resumen técnico para el especialista con posible pre-diagnóstico y justificación (Explicabilidad / XAI)\""
+                "  \"resumen_medico\": \"Resumen técnico para el especialista con posible pre-diagnóstico, justificación (Explicabilidad / XAI) y referencia a los protocolos clínicos consultados.\""
                 "}"
             )
             
