@@ -151,6 +151,8 @@
                 document.getElementById('video-placeholder-text').innerHTML = `Conectado con: <strong>${data.paciente_nombre}</strong><br><small class="text-success mt-2 d-block"><i class="bi bi-camera-video-fill me-1"></i> Transmitiendo en vivo</small>`;
                 document.getElementById('video-placeholder-text').classList.remove('opacity-50');
                 
+                // TODO (SAMR-37): Implementar detector de WebRTC (Network Quality API) para apagar el video automáticamente en caso de mala conexión (fallback a solo audio).
+                
                 document.getElementById('rag-summary-text').innerHTML = `${data.resumen_medico} <br><a href="#" class="text-info text-decoration-none mt-2 d-inline-block">Ver protocolo base</a>`;
                 
                 // Mostrar un toast success
