@@ -17,6 +17,34 @@ from .models import Usuario, Paciente, Familiar, TriageLog, AuditLog
 from .forms import RegistroForm
 import random
 from datetime import date
+import re
+
+def ofuscar_pii(texto, usuario):
+    """
+    US-4.1: Enmascara (tokeniza) los datos PII del paciente (Nombre, Apellidos, DNI)
+    para proteger su privacidad antes de enviar información a servicios de terceros (IA).
+    """
+    if not texto or not usuario:
+        return texto
+        
+    texto_seguro = str(texto)
+    
+    if getattr(usuario, 'dni', None):
+        texto_seguro = texto_seguro.replace(usuario.dni, "[DNI_PROTEGIDO]")
+        
+    if getattr(usuario, 'first_name', None):
+        for word in usuario.first_name.split():
+            if len(word) > 2: # Evitar reemplazar conectores cortos
+                pattern = re.compile(re.escape(word), re.IGNORECASE)
+                texto_seguro = pattern.sub("[NOMBRE_PROTEGIDO]", texto_seguro)
+                
+    if getattr(usuario, 'last_name', None):
+        for word in usuario.last_name.split():
+            if len(word) > 2:
+                pattern = re.compile(re.escape(word), re.IGNORECASE)
+                texto_seguro = pattern.sub("[APELLIDO_PROTEGIDO]", texto_seguro)
+                
+    return texto_seguro
 
 def rol_requerido(roles_permitidos):
     """Decorador de control de acceso basado en roles (RBAC).
@@ -330,6 +358,16 @@ def chatbot_api(request):
                 
                 contexto_clinico = f"Edad: {edad} años. Sexo: {sexo}. Historial Clínico: {historial}. Alergias: {alergias}. Telemetría actual: {telemetria_info}."
 
+            # --- US-4.1 Protección de Privacidad PII ---
+            # Ofuscamos el mensaje del usuario y su contexto clínico antes de enviarlo a la IA
+            user_message_clean = user_message
+            contexto_clinico_clean = contexto_clinico
+            
+            if paciente and paciente.usuario:
+                user_message_clean = ofuscar_pii(user_message, paciente.usuario)
+                contexto_clinico_clean = ofuscar_pii(contexto_clinico, paciente.usuario)
+            # ---------------------------------------------
+            
             # Inicializar cliente OpenAI
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             
@@ -337,7 +375,7 @@ def chatbot_api(request):
             system_instruction = (
                 f"Eres SAMR-IA, un asistente de triaje médico avanzado. "
                 f"Estás evaluando a un paciente con el siguiente contexto clínico anonimizado:\n"
-                f"{contexto_clinico}\n\n"
+                f"{contexto_clinico_clean}\n\n"
                 "Analiza los síntomas del paciente basándote estrictamente en este contexto y devuelve SIEMPRE un JSON válido con la siguiente estructura exacta: "
                 "{"
                 "  \"nivel_alerta\": \"critico\" (para emergencias vitales inminentes como dolor de pecho, riesgo de desmayo, pérdida de consciencia, sangrado severo, dificultad para respirar o alergias graves), \"medio\" (infecciones, dolor agudo sin riesgo de vida inmediato) o \"bajo\" (consultas generales, síntomas leves); "
@@ -350,7 +388,7 @@ def chatbot_api(request):
                 model='gpt-4o-mini',
                 messages=[
                     {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_message}
+                    {"role": "user", "content": user_message_clean}
                 ],
                 response_format={"type": "json_object"}
             )
@@ -463,11 +501,15 @@ def generar_receta(request, triaje_id):
             # Inicializar cliente OpenAI
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             
+            # --- US-4.1 Protección de Privacidad PII ---
+            resumen_medico_clean = ofuscar_pii(triaje.resumen_medico, triaje.paciente.usuario)
+            sintomas_reportados_clean = ofuscar_pii(triaje.sintomas_reportados, triaje.paciente.usuario)
+            
             prompt = (
                 f"Eres SAMR-IA asistiéndole al Dr. {request.user.get_full_name()}. "
                 f"Genera una Receta Médica y un Plan de Tratamiento formal basado en este triaje:\n"
-                f"Resumen médico: {triaje.resumen_medico}\n"
-                f"Síntomas reportados: {triaje.sintomas_reportados}\n"
+                f"Resumen médico: {resumen_medico_clean}\n"
+                f"Síntomas reportados: {sintomas_reportados_clean}\n"
                 f"Devuelve SOLO el texto de la receta y tratamiento en formato markdown, listo para ser firmado."
             )
             
