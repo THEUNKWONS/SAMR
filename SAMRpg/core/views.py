@@ -394,35 +394,32 @@ def chatbot_api(request):
                 
                 contexto_clinico = f"Edad: {edad} años. Sexo: {sexo}. Historial Clínico: {historial}. Alergias: {alergias}. Telemetría actual: {telemetria_info}."
 
-            # --- US-4.1 Protección de Privacidad PII ---
-            # Ofuscamos el mensaje del usuario y su contexto clínico antes de enviarlo a la IA
-            user_message_clean = user_message
-            contexto_clinico_clean = contexto_clinico
-            
-            if paciente and paciente.usuario:
-                user_message_clean = ofuscar_pii(user_message, paciente.usuario)
-                contexto_clinico_clean = ofuscar_pii(contexto_clinico, paciente.usuario)
-            # ---------------------------------------------
-            
+            # --- SAMR-13: Integración RAG para Triaje Automatizado ---
+            from .rag_engine import rag_engine
+
+            # Recuperar protocolos médicos relevantes basados en los síntomas
+            contexto_rag = rag_engine.construir_contexto_rag(user_message, top_k=3)
+            nivel_sugerido_rag = rag_engine.obtener_nivel_sugerido(user_message)
+
             # Inicializar cliente OpenAI
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             
-            # Prompts y configuración
-            # --- Aquí apliqué la lógica de backend para la US-3.4 (Explicabilidad clara de la IA) ---
-            # --- Y para la US-4.5 (Bot de seguimiento para el paciente) ---
-            # A nivel de Prompt Engineering, para la US-4.5 configuro 'respuesta_paciente' 
-            # forzando al modelo a responder con un tono empático y sin jerga médica compleja, 
-            # dándole al paciente explicaciones claras sobre sus síntomas o alertas de salud.
-            # Para la US-3.4, exijo que el 'resumen_medico' incluya la justificación (XAI).
+            # Prompts y configuración enriquecidos con RAG
             system_instruction = (
-                f"Eres SAMR-IA, un asistente de triaje médico avanzado. "
+                f"Eres SAMR-IA, un asistente de triaje médico avanzado con acceso a protocolos clínicos. "
                 f"Estás evaluando a un paciente con el siguiente contexto clínico anonimizado:\n"
-                f"{contexto_clinico_clean}\n\n"
-                "Analiza los síntomas del paciente basándote estrictamente en este contexto y devuelve SIEMPRE un JSON válido con la siguiente estructura exacta: "
+                f"{contexto_clinico}\n\n"
+                f"Además, se han recuperado los siguientes protocolos clínicos relevantes mediante RAG "
+                f"(Retrieval-Augmented Generation) para guiar tu evaluación:\n\n"
+                f"{contexto_rag}\n\n"
+                f"El nivel de alerta sugerido por los protocolos clínicos es: {nivel_sugerido_rag.upper()}. "
+                f"Usa esta referencia pero ajusta según la gravedad real de los síntomas.\n\n"
+                "Analiza los síntomas del paciente basándote en el contexto clínico Y los protocolos recuperados. "
+                "Devuelve SIEMPRE un JSON válido con la siguiente estructura exacta: "
                 "{"
                 "  \"nivel_alerta\": \"critico\" (para emergencias vitales inminentes como dolor de pecho, riesgo de desmayo, pérdida de consciencia, sangrado severo, dificultad para respirar o alergias graves), \"medio\" (infecciones, dolor agudo sin riesgo de vida inmediato) o \"bajo\" (consultas generales, síntomas leves); "
                 "  \"respuesta_paciente\": \"Mensaje empático, claro y directo. Si es crítico o medio, debes informarle al paciente que has emitido una ALERTA INMEDIATA al panel de los médicos y que un especialista se conectará con él en breve a través de la plataforma para una teleconsulta. No lo mandes a llamar al 911, asume que nuestra plataforma gestionará la emergencia.\"; "
-                "  \"resumen_medico\": \"Resumen técnico para el especialista con posible pre-diagnóstico y justificación (Explicabilidad / XAI)\""
+                "  \"resumen_medico\": \"Resumen técnico para el especialista con posible pre-diagnóstico, justificación (Explicabilidad / XAI) y referencia a los protocolos clínicos consultados.\""
                 "}"
             )
             
@@ -471,6 +468,27 @@ def chatbot_api(request):
                     resumen_medico=resumen,
                     estado_asignacion='PENDIENTE'
                 )
+                
+                # --- SAMR-15: Derivación y Matching Inteligente ---
+                from .matching_engine import MatchingEngine
+                from .rag_engine import rag_engine
+                
+                # Obtener la categoría del primer protocolo sugerido (si existe) para matching de especialidad
+                categoria_sugerida = None
+                protocolos = rag_engine.recuperar_protocolos(user_message, top_k=1)
+                if protocolos:
+                    categoria_sugerida = protocolos[0].get('categoria')
+                    
+                medico_asignado = MatchingEngine.asignar_medico_a_triaje(triage_log, categoria_sugerida)
+                
+                if medico_asignado:
+                    resumen += f"\n\n[SISTEMA] Paciente derivado automáticamente al Dr/a. {medico_asignado.last_name}."
+                else:
+                    resumen += "\n\n[SISTEMA] No hay médicos disponibles en este momento. El caso ha sido encolado."
+                    
+                # Actualizar el TriageLog con el resumen extendido
+                triage_log.resumen_medico = resumen
+                triage_log.save()
                 
                 # 2. Auditoría ISO 27001 (Inmutabilidad con Hash)
                 audit_str = f"{paciente.id}-{user_message}-{nivel}-{time.time()}".encode('utf-8')
@@ -606,10 +624,8 @@ def firmar_receta(request, triaje_id):
                 raise Exception("Solo los Médicos Especialistas pueden firmar electrónicamente (US-3.6).")
                 
             triaje = TriageLog.objects.get(id=triaje_id)
-            from .models import Receta, EntidadCertificadora, MedicoEspecialista
-            import hmac
-            import base64
-            
+            from .models import Receta
+            from .prescription_engine import PrescriptionEngine
             receta = Receta.objects.get(triaje=triaje)
             especialista = MedicoEspecialista.objects.get(usuario=request.user)
             
@@ -647,7 +663,13 @@ def firmar_receta(request, triaje_id):
                 raise Exception("Rechazado por Entidad Certificadora: Firma inválida o corrupta.")
             # ------------------------------------------------------------
             
+            # Generar hash y firma criptográfica
+            hash_doc = PrescriptionEngine.generar_hash_documento(receta.contenido)
+            firma = PrescriptionEngine.firmar_receta(request.user.id, hash_doc)
+            
             receta.firmada = True
+            receta.hash_documento = hash_doc
+            receta.firma_digital = firma
             receta.save()
             
             # Auditoría Estricta (WORM)
@@ -670,7 +692,93 @@ def firmar_receta(request, triaje_id):
                 }
             )
             
-            return JsonResponse({'status': 'success', 'message': 'Receta firmada y validada en Entidad Certificadora.'})
+            return JsonResponse({'status': 'success', 'message': 'Receta firmada y enviada al paciente.', 'firma_digital': firma})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+@login_required
+def validar_receta(request, receta_id):
+    """
+    SAMR-17: Endpoint para que un paciente o farmacia valide la autenticidad 
+    e integridad de la receta usando la firma digital.
+    """
+    if request.method == 'GET':
+        try:
+            from .models import Receta
+            from .prescription_engine import PrescriptionEngine
+            
+            receta = Receta.objects.get(id=receta_id)
+            if not receta.firmada or not receta.firma_digital:
+                return JsonResponse({'status': 'error', 'message': 'La receta no ha sido firmada electrónicamente.'}, status=400)
+                
+            medico_id = receta.triaje.medico_asignado.id if receta.triaje.medico_asignado else None
+            if not medico_id:
+                return JsonResponse({'status': 'error', 'message': 'No se encontró el médico asignado a esta receta.'}, status=400)
+                
+            # Validar la firma criptográfica
+            es_valida = PrescriptionEngine.validar_receta(medico_id, receta.contenido, receta.firma_digital)
+            
+            if es_valida:
+                return JsonResponse({
+                    'status': 'success', 
+                    'message': 'Receta válida y auténtica. El contenido no ha sido alterado.',
+                    'integridad': 'VERIFICADA'
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Firma inválida o el contenido de la receta ha sido alterado.',
+                    'integridad': 'COMPROMETIDA'
+                }, status=400)
+                
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+            
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+@login_required
+def exportar_fhir_paciente(request, paciente_id):
+    """
+    SAMR-22: Exporta los datos del paciente en formato estándar HL7 FHIR v4.
+    Permite la interoperabilidad con sistemas externos (ej. MSP).
+    """
+    if request.method == 'GET':
+        try:
+            from .models import Paciente
+            from .fhir_interoperability import FHIREngine
+            
+            # Verificación de permisos (MVP simplificado: asume que médicos o el propio paciente pueden verlo)
+            paciente = Paciente.objects.get(id=paciente_id)
+            
+            fhir_data = FHIREngine.export_patient_to_fhir(paciente)
+            return JsonResponse(fhir_data, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 2})
+            
+        except Paciente.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Paciente no encontrado'}, status=404)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+            
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+@login_required
+def exportar_fhir_triaje(request, triaje_id):
+    """
+    SAMR-22: Exporta el historial de un encuentro clínico (Triaje) en formato HL7 FHIR Bundle.
+    """
+    if request.method == 'GET':
+        try:
+            from .models import TriageLog
+            from .fhir_interoperability import FHIREngine
+            
+            triaje = TriageLog.objects.get(id=triaje_id)
+            fhir_bundle = FHIREngine.export_clinical_encounter_to_fhir(triaje)
+            
+            return JsonResponse(fhir_bundle, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 2})
+            
+        except TriageLog.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Triaje no encontrado'}, status=404)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+            
     return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
