@@ -16,6 +16,7 @@ urlpatterns = [
     path('triaje/', views.triaje_inteligente, name='triaje_inteligente'),
     path('panel-medico/', views.panel_especialista, name='panel_especialista'),
     path('historial/', views.historial_clinico, name='historial_clinico'),
+    path('asistente/', views.asistente_virtual, name='asistente_virtual'),
     
     # API endpoints
     # ruta para el endpoint del bot de la historia US-1.4

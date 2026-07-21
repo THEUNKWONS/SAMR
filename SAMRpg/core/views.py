@@ -299,6 +299,12 @@ def triaje_inteligente(request):
     return render(request, 'triaje.html')
 
 @login_required
+@verificado_required
+@rol_requerido(['PACIENTE', 'FAMILIAR'])
+def asistente_virtual(request):
+    return render(request, 'asistente.html')
+
+@login_required
 def perfil_usuario(request):
     solicitudes_familiares = []
     familiares_aprobados = []

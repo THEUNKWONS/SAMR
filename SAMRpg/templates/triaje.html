@@ -6,18 +6,92 @@
         <div class="glass-card p-4 text-center">
             <h2 class="h4 mb-4 border-bottom pb-2 text-start" style="border-color: var(--glass-border) !important;">Triaje Inteligente</h2>
             
-            <div class="py-5">
-                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="var(--accent-color)" class="bi bi-heart-pulse mb-4" viewBox="0 0 16 16">
-                  <path d="M1.5 8a.5.5 0 0 1 .5-.5h2.764c.954 0 1.79-.67 1.916-1.596l.43-3.155a.5.5 0 0 1 .982-.016l1.246 7.476 1.096-3.288a.5.5 0 0 1 .95.03l.366 2.029A1.5 1.5 0 0 0 13.236 10h1.264a.5.5 0 0 1 0 1h-1.264a2.5 2.5 0 0 1-2.463-2.053l-.116-.642-.906 2.718a.5.5 0 0 1-.945-.04l-1.32-7.92-.3 2.205A2.5 2.5 0 0 1 4.764 9H2a.5.5 0 0 1-.5-.5Zm13-6.5a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5H1.5a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5h13Z"/>
-                </svg>
-                <h3 class="h5 mb-3">Conexión con Sensores IoT Activa</h3>
-                <p class="text-light opacity-75 mb-4">La telemetría está siendo analizada en tiempo real por nuestro motor ML Predictivo.</p>
+            <div class="py-4">
+                <div class="d-flex align-items-center justify-content-center mb-4">
+                    <span class="spinner-grow spinner-grow-sm text-accent me-2" role="status" style="color: var(--accent-color);"></span>
+                    <h3 class="h5 mb-0">Telemetría IoT en Vivo</h3>
+                </div>
+                <p class="text-light opacity-75 mb-4">Recibiendo datos de biosensores en tiempo real (Simulación).</p>
                 
-                <!-- boton principal para abrir el bot conversacional de la historia US-1.4 -->
-                <button class="btn btn-outline-danger px-4 rounded-pill" onclick="document.getElementById('chatbot-toggle').click()">
-                    Reportar Emergencia al Asistente
+                <div class="row g-3 mb-5 justify-content-center">
+                    <div class="col-md-4">
+                        <div class="glass-card p-3" style="background: rgba(0,0,0,0.3);">
+                            <div class="text-secondary mb-2"><i class="bi bi-heart-pulse-fill text-danger me-2"></i>Ritmo Cardíaco</div>
+                            <div class="fs-2 fw-bold font-monospace"><span id="bpm-val">75</span> <span class="fs-6 text-muted">BPM</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="glass-card p-3" style="background: rgba(0,0,0,0.3);">
+                            <div class="text-secondary mb-2"><i class="bi bi-droplet-fill text-info me-2"></i>SpO2 (Oxígeno)</div>
+                            <div class="fs-2 fw-bold font-monospace"><span id="spo2-val">98</span><span class="fs-6 text-muted">%</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-center gap-3 mb-4">
+                    <button class="btn btn-outline-success btn-sm" onclick="setSimulation('normal')">Escenario Normal</button>
+                    <button class="btn btn-outline-warning btn-sm" onclick="setSimulation('medio')">Fiebre/Taquicardia</button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="setSimulation('grave')">Caso Crítico (Asfixia)</button>
+                </div>
+                
+                <!-- boton principal para redirigir al asistente con los datos -->
+                <button class="btn btn-danger px-4 py-2 rounded-pill shadow-lg" onclick="reportarEmergencia()">
+                    <i class="bi bi-shield-plus me-2"></i>Reportar Emergencia al Asistente
                 </button>
             </div>
+
+<script>
+    let currentScenario = 'normal';
+    
+    function setSimulation(scenario) {
+        currentScenario = scenario;
+    }
+
+    function getRandom(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    setInterval(() => {
+        let bpmBase, spo2Base;
+        
+        if (currentScenario === 'normal') {
+            bpmBase = 70;
+            spo2Base = 97;
+        } else if (currentScenario === 'medio') {
+            bpmBase = 110;
+            spo2Base = 94;
+        } else { // grave
+            bpmBase = 135;
+            spo2Base = 88;
+        }
+
+        const bpm = bpmBase + getRandom(-3, 3);
+        const spo2 = spo2Base + getRandom(-1, 1);
+        
+        const bpmEl = document.getElementById('bpm-val');
+        const spo2El = document.getElementById('spo2-val');
+        
+        if (bpmEl && spo2El) {
+            bpmEl.innerText = bpm;
+            spo2El.innerText = Math.min(100, spo2); 
+            
+            if (bpm > 120 || spo2 < 90) {
+                bpmEl.classList.add('text-danger');
+                spo2El.classList.add('text-danger');
+            } else {
+                bpmEl.classList.remove('text-danger');
+                spo2El.classList.remove('text-danger');
+            }
+        }
+    }, 1500);
+
+    function reportarEmergencia() {
+        const bpm = document.getElementById('bpm-val').innerText;
+        const spo2 = document.getElementById('spo2-val').innerText;
+        const targetUrl = "{% url 'asistente_virtual' %}?iot_bpm=" + bpm + "&iot_spo2=" + spo2;
+        window.location.href = targetUrl;
+    }
+</script>
         </div>
     </div>
 </div>
