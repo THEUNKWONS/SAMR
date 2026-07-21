@@ -4,6 +4,8 @@ import json
 import time
 import hashlib
 import functools
+import jwt
+import datetime
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.conf import settings
@@ -187,7 +189,23 @@ def otp_verify_view(request):
             user = Usuario.objects.get(id=user_id)
             login(request, user)
             
-            # Limpiar sesión
+            # --- Generación de Token JWT ---
+            # Se genera un token JWT para el acceso a APIs y seguridad adicional
+            jwt_payload = {
+                'user_id': user.id,
+                'username': user.username,
+                'rol': user.tipoUsuario,
+                'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2),
+                'iat': datetime.datetime.now(datetime.timezone.utc),
+            }
+            # Se firma con el SECRET_KEY del proyecto
+            token = jwt.encode(jwt_payload, settings.SECRET_KEY, algorithm='HS256')
+            
+            # Almacenar token en la sesión para uso interno de Django si es necesario
+            request.session['jwt_token'] = token
+            # -------------------------------
+            
+            # Limpiar sesión OTP
             del request.session['pre_otp_user']
             del request.session['otp_code']
             del request.session['otp_timestamp']
@@ -195,8 +213,13 @@ def otp_verify_view(request):
             messages.success(request, f'¡Bienvenido de nuevo, {user.first_name}!')
             
             if not user.acepto_terminos_lopdp:
-                return redirect('terminos_lopdp')
-            return redirect('inicio')
+                response = redirect('terminos_lopdp')
+            else:
+                response = redirect('inicio')
+                
+            # Establecer el JWT como una cookie HttpOnly para mayor seguridad
+            response.set_cookie('jwt_token', token, httponly=True, samesite='Lax')
+            return response
         else:
             messages.error(request, 'Código OTP incorrecto.')
             
