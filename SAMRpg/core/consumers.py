@@ -24,13 +24,26 @@ class MedicoDashboardConsumer(AsyncWebsocketConsumer):
         message = event['message']
         paciente = event.get('paciente', 'Desconocido')
         nivel = event.get('nivel', 'info')
+        triaje_id = event.get('triaje_id')
+        especialidad_requerida = event.get('especialidad_requerida', 'General')
 
         # Enviar al WebSocket
         await self.send(text_data=json.dumps({
             'type': 'alerta_emergencia',
             'message': message,
             'paciente': paciente,
-            'nivel': nivel
+            'nivel': nivel,
+            'triaje_id': triaje_id,
+            'especialidad_requerida': especialidad_requerida
+        }))
+
+    async def chat_message_paciente(self, event):
+        # Reenviar mensaje de chat del paciente al médico
+        await self.send(text_data=json.dumps({
+            'type': 'chat_message_paciente',
+            'message': event['message'],
+            'paciente': event.get('paciente', 'Paciente'),
+            'triaje_id': event.get('triaje_id')
         }))
 
 class PacienteConsumer(AsyncWebsocketConsumer):
@@ -55,5 +68,11 @@ class PacienteConsumer(AsyncWebsocketConsumer):
     async def medico_conectado(self, event):
         await self.send(text_data=json.dumps({
             'type': 'medico_conectado',
+            'message': event['message']
+        }))
+
+    async def emergencia_medica(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'emergencia_medica',
             'message': event['message']
         }))

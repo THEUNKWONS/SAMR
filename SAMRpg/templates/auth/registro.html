@@ -12,6 +12,7 @@
                 <select name="tipo_usuario" id="tipo_usuario" class="form-control-custom w-100 bg-transparent text-light border-secondary" required onchange="toggleFamiliarFields()">
                     <option value="PACIENTE" class="text-dark">Soy Paciente</option>
                     <option value="FAMILIAR" class="text-dark">Soy Familiar / Cuidador</option>
+                    <option value="MEDICO_ESPECIALISTA" class="text-dark">Soy Médico Especialista</option>
                 </select>
             </div>
             
@@ -41,9 +42,13 @@
                 <label class="form-label text-sm text-secondary">Correo Electrónico (Será tu usuario)</label>
                 <input type="email" name="email" class="form-control-custom w-100" required>
             </div>
-            <div class="col-12">
+            <div class="col-md-6">
                 <label class="form-label text-sm text-secondary">Contraseña Segura</label>
                 <input type="password" name="password" class="form-control-custom w-100" required minlength="6">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label text-sm text-secondary">Confirmar Contraseña</label>
+                <input type="password" name="password_confirm" class="form-control-custom w-100" required minlength="6">
             </div>
 
             <!-- Campo para Pacientes -->
@@ -57,6 +62,27 @@
             <div class="col-12" id="campo_cedula_paciente" style="display: none;">
                 <label class="form-label text-sm text-warning">Cédula del Paciente a Vincular (El paciente deberá aprobar tu solicitud)</label>
                 <input type="text" name="cedula_paciente_asociado" id="input_cedula_paciente" class="form-control-custom w-100" placeholder="Ej. 1720...">
+            </div>
+
+            <!-- Campos para Médicos Especialistas -->
+            <div class="col-md-6" id="campo_especialidad" style="display: none;">
+                <label class="form-label text-sm text-info">Especialidad</label>
+                {{ form.especialidad }}
+                <script>
+                    // Asegurar que las opciones sean legibles en el dropdown transparente
+                    document.addEventListener("DOMContentLoaded", function() {
+                        const select = document.getElementById('input_especialidad');
+                        if(select) {
+                            for(let i=0; i<select.options.length; i++){
+                                select.options[i].classList.add('text-dark');
+                            }
+                        }
+                    });
+                </script>
+            </div>
+            <div class="col-md-6" id="campo_registro_prof" style="display: none;">
+                <label class="form-label text-sm text-info">Registro Profesional</label>
+                <input type="text" name="registro_profesional" id="input_registro_prof" class="form-control-custom w-100" placeholder="Nro de registro médico">
             </div>
         </div>
         
@@ -76,18 +102,32 @@ function toggleFamiliarFields() {
     var inputCedula = document.getElementById('input_cedula_paciente');
     var campoAlergias = document.getElementById('campo_alergias');
     var inputAlergias = document.getElementById('input_alergias');
+    var campoEspecialidad = document.getElementById('campo_especialidad');
+    var inputEspecialidad = document.getElementById('input_especialidad');
+    var campoRegistroProf = document.getElementById('campo_registro_prof');
+    var inputRegistroProf = document.getElementById('input_registro_prof');
     
+    // Ocultar todos por defecto
+    campoCedula.style.display = 'none';
+    inputCedula.required = false;
+    campoAlergias.style.display = 'none';
+    inputAlergias.required = false;
+    campoEspecialidad.style.display = 'none';
+    inputEspecialidad.required = false;
+    campoRegistroProf.style.display = 'none';
+    inputRegistroProf.required = false;
+
     if (tipo === 'FAMILIAR') {
         campoCedula.style.display = 'block';
         inputCedula.required = true;
-        campoAlergias.style.display = 'none';
-        inputAlergias.required = false;
-    } else {
-        campoCedula.style.display = 'none';
-        inputCedula.required = false;
-        inputCedula.value = '';
+    } else if (tipo === 'PACIENTE') {
         campoAlergias.style.display = 'block';
         inputAlergias.required = true;
+    } else if (tipo === 'MEDICO_ESPECIALISTA') {
+        campoEspecialidad.style.display = 'block';
+        inputEspecialidad.required = true;
+        campoRegistroProf.style.display = 'block';
+        inputRegistroProf.required = true;
     }
 }
 // Init state

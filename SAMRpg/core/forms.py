@@ -6,9 +6,21 @@ from datetime import date
 import re
 
 class RegistroForm(forms.ModelForm):
-    tipo_usuario = forms.ChoiceField(choices=[('PACIENTE', 'Paciente'), ('FAMILIAR', 'Familiar')], required=True)
+    tipo_usuario = forms.ChoiceField(choices=[('PACIENTE', 'Paciente'), ('FAMILIAR', 'Familiar'), ('MEDICO_ESPECIALISTA', 'Médico Especialista')], required=True)
     password = forms.CharField(widget=forms.PasswordInput, required=True)
+    password_confirm = forms.CharField(widget=forms.PasswordInput, required=True, label="Confirmar Contraseña")
     cedula_paciente_asociado = forms.CharField(required=False)
+    
+    # Campo Especialidad usando la BD
+    from .models import Especialidad
+    especialidad = forms.ModelChoiceField(
+        queryset=Especialidad.objects.all(), 
+        required=False, 
+        empty_label="Seleccione Especialidad",
+        widget=forms.Select(attrs={'class': 'form-control-custom w-100 bg-transparent text-light border-info', 'id': 'input_especialidad'})
+    )
+    
+    registro_profesional = forms.CharField(required=False)
 
     class Meta:
         model = Usuario
@@ -48,6 +60,12 @@ class RegistroForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        password_confirm = cleaned_data.get('password_confirm')
+        
+        if password and password_confirm and password != password_confirm:
+            self.add_error('password_confirm', "Las contraseñas no coinciden.")
+            
         tipo = cleaned_data.get('tipo_usuario')
         cedula_pac = cleaned_data.get('cedula_paciente_asociado')
         fecha_nacimiento = cleaned_data.get('fecha_nacimiento')
@@ -55,6 +73,15 @@ class RegistroForm(forms.ModelForm):
         # Si es familiar, debe proporcionar cédula
         if tipo == 'FAMILIAR' and not cedula_pac:
             self.add_error('cedula_paciente_asociado', "Debes proporcionar la cédula del paciente.")
+
+        # Si es médico, debe proporcionar especialidad y registro profesional
+        if tipo == 'MEDICO_ESPECIALISTA':
+            especialidad = cleaned_data.get('especialidad')
+            registro_profesional = cleaned_data.get('registro_profesional')
+            if not especialidad or especialidad.strip() == '':
+                self.add_error('especialidad', "Debes proporcionar tu especialidad.")
+            if not registro_profesional or registro_profesional.strip() == '':
+                self.add_error('registro_profesional', "Debes proporcionar tu registro profesional.")
 
         # Si es paciente, validamos edad y alergias
         if tipo == 'PACIENTE':
