@@ -17,6 +17,34 @@ from .models import Usuario, Paciente, Familiar, TriageLog, AuditLog
 from .forms import RegistroForm
 import random
 from datetime import date
+import re
+
+def ofuscar_pii(texto, usuario):
+    """
+    US-4.1: Enmascara (tokeniza) los datos PII del paciente (Nombre, Apellidos, DNI)
+    para proteger su privacidad antes de enviar información a servicios de terceros (IA).
+    """
+    if not texto or not usuario:
+        return texto
+        
+    texto_seguro = str(texto)
+    
+    if getattr(usuario, 'dni', None):
+        texto_seguro = texto_seguro.replace(usuario.dni, "[DNI_PROTEGIDO]")
+        
+    if getattr(usuario, 'first_name', None):
+        for word in usuario.first_name.split():
+            if len(word) > 2: # Evitar reemplazar conectores cortos
+                pattern = re.compile(re.escape(word), re.IGNORECASE)
+                texto_seguro = pattern.sub("[NOMBRE_PROTEGIDO]", texto_seguro)
+                
+    if getattr(usuario, 'last_name', None):
+        for word in usuario.last_name.split():
+            if len(word) > 2:
+                pattern = re.compile(re.escape(word), re.IGNORECASE)
+                texto_seguro = pattern.sub("[APELLIDO_PROTEGIDO]", texto_seguro)
+                
+    return texto_seguro
 
 def rol_requerido(roles_permitidos):
     """Decorador de control de acceso basado en roles (RBAC).
@@ -292,6 +320,7 @@ def historial_clinico(request):
         
     return render(request, 'historial.html', {'historial': historial})
 
+# aqui se implemento la logica del backend para el bot conversacional de la historia US-1.4
 @login_required
 @verificado_required
 def chatbot_api(request):
@@ -330,14 +359,30 @@ def chatbot_api(request):
                 
                 contexto_clinico = f"Edad: {edad} años. Sexo: {sexo}. Historial Clínico: {historial}. Alergias: {alergias}. Telemetría actual: {telemetria_info}."
 
+            # --- US-4.1 Protección de Privacidad PII ---
+            # Ofuscamos el mensaje del usuario y su contexto clínico antes de enviarlo a la IA
+            user_message_clean = user_message
+            contexto_clinico_clean = contexto_clinico
+            
+            if paciente and paciente.usuario:
+                user_message_clean = ofuscar_pii(user_message, paciente.usuario)
+                contexto_clinico_clean = ofuscar_pii(contexto_clinico, paciente.usuario)
+            # ---------------------------------------------
+            
             # Inicializar cliente OpenAI
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             
             # Prompts y configuración
+            # --- Aquí apliqué la lógica de backend para la US-3.4 (Explicabilidad clara de la IA) ---
+            # --- Y para la US-4.5 (Bot de seguimiento para el paciente) ---
+            # A nivel de Prompt Engineering, para la US-4.5 configuro 'respuesta_paciente' 
+            # forzando al modelo a responder con un tono empático y sin jerga médica compleja, 
+            # dándole al paciente explicaciones claras sobre sus síntomas o alertas de salud.
+            # Para la US-3.4, exijo que el 'resumen_medico' incluya la justificación (XAI).
             system_instruction = (
                 f"Eres SAMR-IA, un asistente de triaje médico avanzado. "
                 f"Estás evaluando a un paciente con el siguiente contexto clínico anonimizado:\n"
-                f"{contexto_clinico}\n\n"
+                f"{contexto_clinico_clean}\n\n"
                 "Analiza los síntomas del paciente basándote estrictamente en este contexto y devuelve SIEMPRE un JSON válido con la siguiente estructura exacta: "
                 "{"
                 "  \"nivel_alerta\": \"critico\" (para emergencias vitales inminentes como dolor de pecho, riesgo de desmayo, pérdida de consciencia, sangrado severo, dificultad para respirar o alergias graves), \"medio\" (infecciones, dolor agudo sin riesgo de vida inmediato) o \"bajo\" (consultas generales, síntomas leves); "
@@ -350,7 +395,7 @@ def chatbot_api(request):
                 model='gpt-4o-mini',
                 messages=[
                     {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_message}
+                    {"role": "user", "content": user_message_clean}
                 ],
                 response_format={"type": "json_object"}
             )
@@ -362,6 +407,26 @@ def chatbot_api(request):
             resumen = ai_data.get('resumen_medico', 'Síntomas generales.')
             
             # 1. Registrar Triaje en Base de Datos (Persistencia)
+            # SAMR-48-US-4.7: Como arquitecta, este es el punto lógico donde se
+            # materializa el EHR unificado mínimo asociado a un triaje. No se
+            # debe realizar una exportación síncrona y bloqueante desde la
+            # petición web. En su lugar la arquitectura debe:
+            # - Construir un DTO/Envelope minimal (identificador paciente,
+            #   timestamp, resumen_medico, sintomas_reportados, nivel_alerta,
+            #   referencias a registros cifrados) listo para mapear a FHIR (R4).
+            # - Validar consentimiento y políticas de compartición antes de
+            #   publicar (consentimiento explícito del paciente o reglas DPO).
+            # - Publicar el evento en una cola de eventos seguro (RabbitMQ/Kafka)
+            #   para un proceso asíncrono de transformación y entrega hacia
+            #   MSP/IESS (con adaptador que convierte a FHIR/HL7 según spec).
+            # - Asegurar logging, trazabilidad y WORM audit (AuditLog ya
+            #   existente) y que la transferencia final use mTLS / OAuth2 JWT
+            #   con encriptación en tránsito (TLS1.3) y en reposo (AES-256).
+            # - Implementar idempotencia y mecanismos de retry con backoff en
+            #   el worker que entrega al Registro Nacional de Salud.
+            # Esta aproximación mantiene la petición del usuario rápida y
+            # delega la complejidad de interoperabilidad a un componente
+            # especializado y testeable fuera del request/response.
             if paciente:
                 triage_log = TriageLog.objects.create(
                     paciente=paciente,
@@ -463,11 +528,15 @@ def generar_receta(request, triaje_id):
             # Inicializar cliente OpenAI
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             
+            # --- US-4.1 Protección de Privacidad PII ---
+            resumen_medico_clean = ofuscar_pii(triaje.resumen_medico, triaje.paciente.usuario)
+            sintomas_reportados_clean = ofuscar_pii(triaje.sintomas_reportados, triaje.paciente.usuario)
+            
             prompt = (
                 f"Eres SAMR-IA asistiéndole al Dr. {request.user.get_full_name()}. "
                 f"Genera una Receta Médica y un Plan de Tratamiento formal basado en este triaje:\n"
-                f"Resumen médico: {triaje.resumen_medico}\n"
-                f"Síntomas reportados: {triaje.sintomas_reportados}\n"
+                f"Resumen médico: {resumen_medico_clean}\n"
+                f"Síntomas reportados: {sintomas_reportados_clean}\n"
                 f"Devuelve SOLO el texto de la receta y tratamiento en formato markdown, listo para ser firmado."
             )
             
