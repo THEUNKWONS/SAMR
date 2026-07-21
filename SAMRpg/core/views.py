@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect
+from django.db.models import Q
 from django.http import JsonResponse
 import json
 import time
@@ -337,7 +338,11 @@ def gestionar_solicitud_familiar(request, familiar_id):
 @verificado_required
 @rol_requerido(['MEDICO_ESPECIALISTA', 'MEDICO_ASISTENTE'])
 def panel_especialista(request):
-    triajes_pendientes = TriageLog.objects.filter(estado_asignacion='PENDIENTE').order_by('-timestamp')
+    triajes_pendientes = TriageLog.objects.filter(
+        estado_asignacion='PENDIENTE'
+    ).filter(
+        Q(medico_asignado=request.user) | Q(medico_asignado__isnull=True)
+    ).order_by('-timestamp')
     return render(request, 'panel_medico.html', {'triajes_pendientes': triajes_pendientes})
 
 @login_required
@@ -403,6 +408,10 @@ def chatbot_api(request):
 
             # Inicializar cliente OpenAI
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
+            
+            # Limpiar datos PII
+            usuario_para_ofuscar = paciente.usuario if paciente else None
+            user_message_clean = ofuscar_pii(user_message, usuario_para_ofuscar)
             
             # Prompts y configuración enriquecidos con RAG
             system_instruction = (
@@ -624,8 +633,9 @@ def firmar_receta(request, triaje_id):
                 raise Exception("Solo los Médicos Especialistas pueden firmar electrónicamente (US-3.6).")
                 
             triaje = TriageLog.objects.get(id=triaje_id)
-            from .models import Receta
+            from .models import Receta, MedicoEspecialista, EntidadCertificadora
             from .prescription_engine import PrescriptionEngine
+            import hmac
             receta = Receta.objects.get(triaje=triaje)
             especialista = MedicoEspecialista.objects.get(usuario=request.user)
             

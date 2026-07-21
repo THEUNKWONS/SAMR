@@ -52,7 +52,7 @@ class MatchingEngine:
         
         if medico_asignado:
             triaje_log.medico_asignado = medico_asignado
-            triaje_log.estado_asignacion = 'ATENDIDO'  # O un estado intermedio 'ASIGNADO'
+            triaje_log.estado_asignacion = 'PENDIENTE'
             triaje_log.save()
             
             # Incrementar la carga de trabajo del medico
