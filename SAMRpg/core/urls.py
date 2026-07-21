@@ -18,6 +18,7 @@ urlpatterns = [
     path('historial/', views.historial_clinico, name='historial_clinico'),
     
     # API endpoints
+    # ruta para el endpoint del bot de la historia US-1.4
     path('api/chatbot/', views.chatbot_api, name='chatbot_api'),
     path('api/triaje/<int:triaje_id>/aceptar/', views.aceptar_triaje, name='aceptar_triaje'),
     path('api/triaje/<int:triaje_id>/generar_receta/', views.generar_receta, name='generar_receta'),

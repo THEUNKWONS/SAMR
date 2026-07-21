@@ -37,6 +37,12 @@
     </div>
 
     <div class="col-lg-8">
+        <!-- 
+            Aquí implementé el diseño UX/UI para la teleconsulta síncrona.
+            Historia de Usuario Realizada: SAMR-36-US-3.2-Como-médico-y-paciente-queremos-tener-una-teleconsulta-síncrona-con-botones-fáciles-para-manejar-audio-y-video.
+            Se aplicó un diseño de "glass-card" oscuro para reducir la fatiga visual del médico (UI), 
+            y se estructuró la jerarquía de la pantalla para que el streaming de video y las acciones principales (como recetar) sean inmediatas y muy accesibles (UX).
+        -->
         <div class="glass-card p-4" id="teleconsulta-panel" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h5 class="mb-0">Teleconsulta Síncrona</h5>
@@ -49,6 +55,12 @@
 
             <div class="row">
                 <div class="col-md-6">
+                    <!--
+                        Aquí implementé la parte visual para la US-3.4 (Explicabilidad clara sobre sugerencias de diagnóstico).
+                        Decisión UX/UI: Se colocó el "Resumen de IA (RAG)" en la mitad izquierda del panel de acciones,
+                        utilizando un recuadro semitransparente oscuro para separar visualmente el contexto médico de las acciones ejecutables.
+                        Esto permite al especialista leer fácilmente la justificación de la IA sin perder de vista los controles principales (UX).
+                    -->
                     <h6>Resumen de IA (RAG)</h6>
                     <p class="text-sm text-light opacity-75 p-2 rounded" style="background: rgba(0,0,0,0.2);" id="rag-summary-text">
                         Esperando conexión con paciente...
@@ -74,7 +86,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // Conexión WebSocket
+        // Conexión WebSocket para recepción de alertas en tiempo real sin recargar (SAMR-34)
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const wsUrl = protocol + window.location.host + '/ws/dashboard/';
         const socket = new WebSocket(wsUrl);

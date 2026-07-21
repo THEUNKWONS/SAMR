@@ -7,6 +7,92 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatInput = document.getElementById('chat-input');
     const chatMessages = document.getElementById('chat-messages');
 
+    // SAMR-28-US-1.6: Edge AI/offline-first. Guardar localmente los síntomas cuando no hay red y reenviar al reconectar.
+    const offlineQueueKey = 'samr-offline-symptoms-queue';
+
+    const getOfflineQueue = () => {
+        try {
+            const queueJson = localStorage.getItem(offlineQueueKey);
+            return queueJson ? JSON.parse(queueJson) : [];
+        } catch (err) {
+            console.error('Error leyendo cola offline:', err);
+            return [];
+        }
+    };
+
+    const setOfflineQueue = (queue) => {
+        localStorage.setItem(offlineQueueKey, JSON.stringify(queue));
+    };
+
+    const enqueueOfflineMessage = (message) => {
+        const queue = getOfflineQueue();
+        queue.push({ message, timestamp: new Date().toISOString() });
+        setOfflineQueue(queue);
+    };
+
+    const getCookie = (name) => {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    };
+
+    const flushOfflineQueue = async () => {
+        const queue = getOfflineQueue();
+        if (!queue.length) return;
+
+        appendMessage('bot', `Restablecida la conexión. Enviando ${queue.length} síntoma(s) guardado(s) localmente...`, 'system-msg');
+        const remaining = [];
+
+        for (const item of queue) {
+            try {
+                const response = await fetch('/api/chatbot/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({ message: item.message })
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    appendMessage('bot', `✅ Síntomas previamente guardados enviados correctamente.`, 'system-msg');
+                } else {
+                    remaining.push(item);
+                    console.warn('No se pudo reenviar mensaje offline:', data);
+                }
+            } catch (error) {
+                remaining.push(item);
+                console.warn('Error reenviando cola offline:', error);
+            }
+        }
+
+        setOfflineQueue(remaining);
+        if (remaining.length > 0) {
+            appendMessage('bot', 'Algunos síntomas siguen pendientes. Se reenviarán cuando la conexión sea estable.', 'system-msg');
+        } else {
+            appendMessage('bot', 'Todos los síntomas locales fueron enviados al servidor.', 'system-msg');
+        }
+    };
+
+    window.addEventListener('online', () => {
+        appendMessage('bot', 'Conexión restaurada. Intentando enviar los síntomas guardados...', 'system-msg');
+        flushOfflineQueue();
+    });
+
+    window.addEventListener('offline', () => {
+        appendMessage('bot', 'Estás sin conexión. Los síntomas se guardarán localmente y se enviarán cuando se recupere internet.', 'system-msg');
+    });
+
     // Toggle window
     chatbotBtn.addEventListener('click', () => {
         chatbotWindow.classList.toggle('active');
@@ -34,28 +120,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = chatInput.value.trim();
         if (text === '') return;
 
+        // If the user is offline, queue the symptom report locally and avoid calling the API.
+        if (!navigator.onLine) {
+            appendMessage('user', text);
+            enqueueOfflineMessage(text);
+            chatInput.value = '';
+            appendMessage('bot', 'Sin conexión. Tus síntomas se han guardado localmente y se enviarán cuando recuperes internet.', 'system-msg');
+            return;
+        }
+
         // User message
         appendMessage('user', text);
         chatInput.value = '';
 
+        // SAMR-32-US-2.4: En la arquitectura, este cliente debe empaquetar la telemetría inmediata de los sensores IoT
+        // junto con los síntomas antes de invocar al motor LLM / endpoint de triaje. Es una responsabilidad de Edge
+        // AI conectar datos locales de IoT con el mensaje clínico para mejorar la inferencia y el contexto.
         // Bot response (API Fetch)
         appendMessage('bot', '...', 'loading-msg'); // Loading indicator
-
-        // Extract CSRF token from cookies
-        const getCookie = (name) => {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
-        };
 
         fetch('/api/chatbot/', {
             method: 'POST',
@@ -65,24 +147,25 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             body: JSON.stringify({ message: text })
         })
-            .then(response => response.json())
-            .then(data => {
-                // Remove loading msg
-                const loadingMsg = document.querySelector('.loading-msg');
-                if (loadingMsg) loadingMsg.remove();
+        .then(response => response.json())
+        .then(data => {
+            // Remove loading msg
+            const loadingMsg = document.querySelector('.loading-msg');
+            if (loadingMsg) loadingMsg.remove();
 
-                if (data.status === 'success') {
-                    appendMessage('bot', data.reply);
-                } else {
-                    appendMessage('bot', 'Error de conexión con la red neuronal.');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                const loadingMsg = document.querySelector('.loading-msg');
-                if (loadingMsg) loadingMsg.remove();
-                appendMessage('bot', 'Error de red.');
-            });
+            if (data.status === 'success') {
+                appendMessage('bot', data.reply);
+            } else {
+                appendMessage('bot', 'Error de conexión con la red neuronal.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            const loadingMsg = document.querySelector('.loading-msg');
+            if (loadingMsg) loadingMsg.remove();
+            enqueueOfflineMessage(text);
+            appendMessage('bot', 'No se pudo enviar. Tus síntomas se han guardado localmente y se enviarán cuando haya conexión.', 'system-msg');
+        });
     };
 
     sendBtn.addEventListener('click', sendMessage);
@@ -102,24 +185,24 @@ document.addEventListener('DOMContentLoaded', () => {
             recognition.interimResults = false;
             recognition.maxAlternatives = 1;
 
-            recognition.onstart = function () {
+            recognition.onstart = function() {
                 micBtn.style.color = 'red';
                 chatInput.placeholder = "Escuchando...";
             };
 
-            recognition.onresult = function (event) {
+            recognition.onresult = function(event) {
                 const speechResult = event.results[0][0].transcript;
                 chatInput.value = speechResult;
                 sendMessage();
             };
 
-            recognition.onspeechend = function () {
+            recognition.onspeechend = function() {
                 recognition.stop();
                 micBtn.style.color = '';
                 chatInput.placeholder = "Escribe tu mensaje...";
             };
 
-            recognition.onerror = function (event) {
+            recognition.onerror = function(event) {
                 console.error("Speech recognition error", event.error);
                 micBtn.style.color = '';
                 chatInput.placeholder = "Escribe tu mensaje...";
@@ -152,11 +235,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const wsUrl = protocol + window.location.host + '/ws/paciente/';
     const socket = new WebSocket(wsUrl);
 
-    socket.onopen = function (e) {
+    socket.onopen = function(e) {
         console.log("[WebSocket] Conectado al canal del paciente");
     };
 
-    socket.onmessage = function (e) {
+    socket.onmessage = function(e) {
         const data = JSON.parse(e.data);
         if (data.type === 'medico_conectado') {
             appendMessage('bot', '✅ ' + data.message);
@@ -167,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    socket.onclose = function (e) {
+    socket.onclose = function(e) {
         console.log("[WebSocket] Desconectado del canal del paciente");
     };
 });
