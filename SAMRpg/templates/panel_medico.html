@@ -115,6 +115,21 @@
     </div>
 </div>
 
+<!-- Modal RAG Protocol -->
+<div class="modal fade" id="protocoloModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content shadow-lg" style="background: #1e293b; border: 1px solid rgba(255,255,255,0.15); color: #f8fafc;">
+      <div class="modal-header border-bottom" style="border-color: rgba(255,255,255,0.1) !important;">
+        <h5 class="modal-title fw-bold"><i class="bi bi-journal-medical me-2"></i>Protocolo Clínico Base (RAG)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="white-space: pre-wrap; font-family: monospace; max-height: 60vh; overflow-y: auto;" id="protocolo-modal-body">
+        Cargando...
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modals must be outside of transformed/filtered containers -->
 {% for triaje in triajes_pendientes %}
     {% if triaje.nivel_alerta == 'bajo' %}
@@ -244,7 +259,8 @@
                 
                 // TODO (SAMR-37): Implementar detector de WebRTC (Network Quality API) para apagar el video automáticamente en caso de mala conexión (fallback a solo audio).
                 
-                document.getElementById('rag-summary-text').innerHTML = `${data.resumen_medico} <br><a href="#" class="text-info text-decoration-none mt-2 d-inline-block">Ver protocolo base</a>`;
+                document.getElementById('protocolo-modal-body').textContent = data.protocolo_rag || "No hay protocolos RAG disponibles para este triaje.";
+                document.getElementById('rag-summary-text').innerHTML = `${data.resumen_medico} <br><a href="#" class="text-info text-decoration-none mt-2 d-inline-block" data-bs-toggle="modal" data-bs-target="#protocoloModal">Ver protocolo base</a>`;
                 
                 // Mostrar un toast success
                 const toastContainer = document.querySelector('.toast-container');

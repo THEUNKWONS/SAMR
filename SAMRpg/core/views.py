@@ -122,38 +122,27 @@ def login_view(request):
             except Exception:
                 pass
 
-            # --- Lógica de 2FA (Doble Factor) Exclusiva para Especialistas ---
-            # Para garantizar la seguridad del panel médico, se requiere OTP solo para MEDICO_ESPECIALISTA.
-            if user.tipoUsuario == 'MEDICO_ESPECIALISTA':
-                # Generar OTP de 6 dígitos
-                otp = str(random.randint(100000, 999999))
-                request.session['pre_otp_user'] = user.id
-                request.session['otp_code'] = otp
-                request.session['otp_timestamp'] = time.time()
+            # --- Lógica de 2FA (Doble Factor) para TODOS los roles ---
+            # Generar OTP de 6 dígitos
+            otp = str(random.randint(100000, 999999))
+            request.session['pre_otp_user'] = user.id
+            request.session['otp_code'] = otp
+            request.session['otp_timestamp'] = time.time()
+            
+            # Enviar correo (En desarrollo se imprime en consola si falla)
+            try:
+                send_mail(
+                    'Código de Verificación - SAMR-IA',
+                    f'Hola {user.first_name},\n\nTu código de verificación de 6 dígitos es: {otp}\n\nEste código expirará en 5 minutos.',
+                    'no-reply@samria.com',
+                    [user.email],
+                    fail_silently=False,
+                )
+            except Exception as e:
+                print(f"[ERROR CORREO] {str(e)}. Código generado: {otp}")
                 
-                # Enviar correo (En desarrollo se imprime en consola si falla)
-                try:
-                    send_mail(
-                        'Código de Verificación - SAMR-IA',
-                        f'Hola {user.first_name},\n\nTu código de verificación de 6 dígitos es: {otp}\n\nEste código expirará en 5 minutos.',
-                        'no-reply@samria.com',
-                        [user.email],
-                        fail_silently=False,
-                    )
-                except Exception as e:
-                    print(f"[ERROR CORREO] {str(e)}. Código generado: {otp}")
-                    
-                messages.success(request, 'Código OTP enviado a tu correo. Por seguridad, requerimos doble factor.')
-                return redirect('otp_verify')
-            else:
-                # --- Autenticación Estándar para otros roles ---
-                # Roles como PACIENTE, FAMILIAR, etc. entran de manera directa.
-                login(request, user)
-                messages.success(request, f'¡Bienvenido de nuevo, {user.first_name}!')
-                
-                if not user.acepto_terminos_lopdp:
-                    return redirect('terminos_lopdp')
-                return redirect('inicio')
+            messages.success(request, 'Código OTP enviado a tu correo. Por seguridad, requerimos doble factor.')
+            return redirect('otp_verify')
         else:
             # Registrar intento fallido en AuditLog
             try:
@@ -358,14 +347,22 @@ def panel_especialista(request):
     if request.user.tipoUsuario == 'MEDICO_ESPECIALISTA':
         try:
             especialidad_medico = request.user.perfil_especialista.especialidad
-            if especialidad_medico:
-                triajes_pendientes = triajes_pendientes.filter(
-                    Q(especialidad_requerida=especialidad_medico) | 
-                    Q(especialidad_requerida__nombre='General') |
-                    Q(especialidad_requerida__isnull=True)
-                )
         except Exception:
             pass
+            
+    # Mostrar los triajes que me han sido asignados explícitamente, o los que no tienen médico asignado
+    triajes_pendientes = triajes_pendientes.filter(
+        Q(medico_asignado=request.user) | Q(medico_asignado__isnull=True)
+    )
+    
+    # Adicionalmente, si no están asignados, filtrar por especialidad para los que son 'General' o coinciden con el médico
+    if especialidad_medico:
+        triajes_pendientes = triajes_pendientes.filter(
+            Q(especialidad_requerida=especialidad_medico) | 
+            Q(especialidad_requerida__nombre='General') |
+            Q(especialidad_requerida__isnull=True) |
+            Q(medico_asignado=request.user) # Asegurar que siempre veamos los asignados directamente
+        )
             
     triajes_pendientes = triajes_pendientes.order_by('-timestamp')
     
@@ -373,12 +370,6 @@ def panel_especialista(request):
         'triajes_pendientes': triajes_pendientes,
         'especialidad_medico_nombre': especialidad_medico.nombre if especialidad_medico else 'General'
     })
-    triajes_pendientes = TriageLog.objects.filter(
-        estado_asignacion='PENDIENTE'
-    ).filter(
-        Q(medico_asignado=request.user) | Q(medico_asignado__isnull=True)
-    ).order_by('-timestamp')
-    return render(request, 'panel_medico.html', {'triajes_pendientes': triajes_pendientes})
 
 @login_required
 @verificado_required
@@ -555,6 +546,14 @@ def chatbot_api(request):
                     estado_asignacion='PENDIENTE'
                 )
                 
+                from .models import RAGQueryLog
+                RAGQueryLog.objects.create(
+                    triaje=triage_log,
+                    sintomas_query=user_message,
+                    protocolos_recuperados=contexto_rag,
+                    nivel_sugerido_rag=nivel_sugerido_rag
+                )
+                
                 # --- SAMR-15: Derivación y Matching Inteligente ---
                 from .matching_engine import MatchingEngine
                 from .rag_engine import rag_engine
@@ -644,12 +643,20 @@ def aceptar_triaje(request, triaje_id):
                 except Exception as e:
                     print(f"Error notificando al paciente: {e}")
                 
+                # Retrieve RAG Context
+                rag_context = ""
+                from .models import RAGQueryLog
+                rag_log = RAGQueryLog.objects.filter(triaje=triaje).first()
+                if rag_log:
+                    rag_context = rag_log.protocolos_recuperados
+
                 paciente_nombre = triaje.paciente.usuario.get_full_name() or triaje.paciente.usuario.username
                 return JsonResponse({
                     'status': 'success', 
                     'message': 'Triaje aceptado y conectado',
                     'paciente_nombre': paciente_nombre,
-                    'resumen_medico': triaje.resumen_medico
+                    'resumen_medico': triaje.resumen_medico,
+                    'protocolo_rag': rag_context
                 })
             else:
                 return JsonResponse({'status': 'error', 'message': 'El triaje ya fue atendido por otro especialista'}, status=400)

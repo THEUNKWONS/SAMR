@@ -33,14 +33,8 @@ class RegistroForm(forms.ModelForm):
 
     def clean_password(self):
         password = self.cleaned_data.get('password')
-        try:
-            validate_password(password)
-        except ValidationError as e:
-            raise forms.ValidationError(list(e.messages))
-        
-        # Validación extra de fortaleza
-        if not re.search(r'\d', password) or not re.search(r'[A-Za-z]', password):
-            raise forms.ValidationError("La contraseña debe contener al menos letras y números.")
+        if password and len(password) <= 5:
+            raise forms.ValidationError("La contraseña debe tener más de 5 caracteres.")
             
         return password
 
@@ -75,13 +69,7 @@ class RegistroForm(forms.ModelForm):
             self.add_error('cedula_paciente_asociado', "Debes proporcionar la cédula del paciente.")
 
         # Si es médico, debe proporcionar especialidad y registro profesional
-        if tipo == 'MEDICO_ESPECIALISTA':
-            especialidad = cleaned_data.get('especialidad')
-            registro_profesional = cleaned_data.get('registro_profesional')
-            if not especialidad or especialidad.strip() == '':
-                self.add_error('especialidad', "Debes proporcionar tu especialidad.")
-            if not registro_profesional or registro_profesional.strip() == '':
-                self.add_error('registro_profesional', "Debes proporcionar tu registro profesional.")
+        # (Desactivado por petición del usuario para simplificar el registro)
 
         # Si es paciente, validamos edad y alergias
         if tipo == 'PACIENTE':

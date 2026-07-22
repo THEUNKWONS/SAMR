@@ -201,7 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
             recognition.maxAlternatives = 1;
             const micIcon = document.getElementById('mic-icon');
 
+            let isRecording = false;
+
             recognition.onstart = function() {
+                isRecording = true;
                 micIcon.classList.replace('text-light', 'text-danger');
                 micBtn.style.animation = 'pulseAvatar 1s infinite';
                 chatInput.placeholder = "Escuchando...";
@@ -215,20 +218,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
             recognition.onspeechend = function() {
                 recognition.stop();
+                isRecording = false;
                 micIcon.classList.replace('text-danger', 'text-light');
                 micBtn.style.animation = 'none';
                 chatInput.placeholder = "Escribe tu mensaje médico aquí...";
             };
 
             recognition.onerror = function(event) {
+                isRecording = false;
                 micIcon.classList.replace('text-danger', 'text-light');
                 micBtn.style.animation = 'none';
                 chatInput.placeholder = "Escribe tu mensaje médico aquí...";
-                appendMessage('bot', 'No pude escucharte bien. ¿Puedes intentarlo de nuevo?');
+                if (event.error !== 'aborted') {
+                    appendMessage('bot', 'No pude escucharte bien. ¿Puedes intentarlo de nuevo?');
+                }
             };
 
             micBtn.addEventListener('click', () => {
-                recognition.start();
+                if (isRecording) {
+                    recognition.stop();
+                } else {
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                        console.error("Error al iniciar el reconocimiento de voz:", e);
+                    }
+                }
             });
         } else {
             micBtn.style.display = 'none';
