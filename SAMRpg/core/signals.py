@@ -31,6 +31,26 @@ def audit_paciente(sender, instance, created, **kwargs):
 def audit_telemetria(sender, instance, created, **kwargs):
     create_audit_log(sender, instance, created, **kwargs)
 
+# SAMR-48-US-4.7: Punto de integración explicado desde la arquitectura.
+#
+# - La creación/actualización de telemetría o de registros clínicos (p.ej.
+#   `TriageLog`, `Receta`, `Paciente`) es una señal natural para generar un
+#   EHR unificado mínimo que pueda ser entregado al Registro Nacional de
+#   Salud (MSP / IESS).
+# - NO recomendamos enviar el EHR directamente desde el signal handler en
+#   el hilo de Django web. En vez de eso, el signal debe encolar un evento
+#   (contenido validado y ofuscado) en una cola segura (ej. RabbitMQ/Kafka)
+#   o en un storage intermedio. Un worker asíncrono se encargará de:
+#     * mapear al perfil FHIR requerido (R4), realizar transformaciones y
+#       enriquecimiento de metadatos (IDs de institución, codificaciones SNOMED/ICD).
+#     * verificar consentimiento y políticas DPO antes de la entrega.
+#     * entregar mediante un adaptador seguro con mTLS/OAuth2 al endpoint
+#       del MSP/IESS, con trazabilidad y hashing (WORM) almacenado en `AuditLog`.
+# - El worker debe implementar idempotencia, backoff y alertas operacionales
+#   si el Registro Nacional responde con errores críticos.
+# - Esta separación permite testear y auditar el pipeline de interoperabilidad
+#   sin impactar la latencia de la experiencia del usuario.
+
 
 # --- Signals de Gestión de Identidad y Acceso (SAMR-9) ---
 

@@ -26,9 +26,11 @@
                 {% else %}
                 <div class="alert border-0" style="background: rgba(16, 185, 129, 0.1); color: #6ee7b7;">
                     <strong>Baja Prioridad</strong>
-                    <p class="mb-1 text-sm text-light opacity-75">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico }}</p>
-                    <button class="btn btn-sm btn-outline-success mt-2">Ver Detalle</button>
+                    <p class="mb-1 text-sm text-light opacity-75">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico|truncatewords:15 }}</p>
+                    <button class="btn btn-sm btn-outline-success mt-2" data-bs-toggle="modal" data-bs-target="#detalleModal{{ triaje.id }}">Ver Detalle</button>
                 </div>
+                
+
                 {% endif %}
             {% empty %}
                 <p class="text-muted text-sm">No hay ofertas de emergencia pendientes.</p>
@@ -37,6 +39,12 @@
     </div>
 
     <div class="col-lg-8">
+        <!-- 
+            Aquí implementé el diseño UX/UI para la teleconsulta síncrona.
+            Historia de Usuario Realizada: SAMR-36-US-3.2-Como-médico-y-paciente-queremos-tener-una-teleconsulta-síncrona-con-botones-fáciles-para-manejar-audio-y-video.
+            Se aplicó un diseño de "glass-card" oscuro para reducir la fatiga visual del médico (UI), 
+            y se estructuró la jerarquía de la pantalla para que el streaming de video y las acciones principales (como recetar) sean inmediatas y muy accesibles (UX).
+        -->
         <div class="glass-card p-4" id="teleconsulta-panel" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h5 class="mb-0">Teleconsulta Síncrona</h5>
@@ -49,14 +57,39 @@
 
             <div class="row">
                 <div class="col-md-6">
-                    <h6>Resumen de IA (RAG)</h6>
+                    <!--
+                        Aquí implementé la parte visual para la US-3.4 (Explicabilidad clara sobre sugerencias de diagnóstico).
+                        Decisión UX/UI: Se colocó el "Resumen de IA (RAG)" en la mitad izquierda del panel de acciones,
+                        utilizando un recuadro semitransparente oscuro para separar visualmente el contexto médico de las acciones ejecutables.
+                        Esto permite al especialista leer fácilmente la justificación de la IA sin perder de vista los controles principales (UX).
+                    -->
+                    <h6>Resumen de IA (RAG) — Triaje</h6>
                     <p class="text-sm text-light opacity-75 p-2 rounded" style="background: rgba(0,0,0,0.2);" id="rag-summary-text">
                         Esperando conexión con paciente...
                     </p>
+
+                    <!--
+                        SAMR-US-2.2: Sección de resumen bibliográfico RAG para el especialista.
+                        Como especialista, quiero recibir un resumen generado por RAG sustentado
+                        en libros médicos para no enfrentar alucinaciones de IA.
+                        Decisión UX/UI: Se usa una tarjeta colapsable con borde azul para diferenciar
+                        visualmente el resumen bibliográfico (más profundo y técnico) del resumen
+                        de triaje inicial (orientado al diagnóstico rápido). Las citas se muestran
+                        como badges etiquetados con el libro y la página para facilitar la verificación.
+                    -->
+                    <div id="biblio-rag-container" style="display:none; margin-top: 12px;">
+                        <h6 style="color: #93c5fd;">📚 Resumen Clínico con Bibliografía (US-2.2)</h6>
+                        <div id="biblio-resumen-text" class="text-sm text-light p-2 rounded" style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(147,197,253,0.3); white-space: pre-wrap; max-height: 260px; overflow-y: auto;">
+                        </div>
+                        <div id="biblio-referencias-list" class="mt-2">
+                        </div>
+                    </div>
                 </div>
                 <div class="col-md-6 text-end">
                     <h6>Acciones</h6>
                     <button id="btn-generar-receta" class="btn btn-primary btn-sm mb-2 w-100" style="background: var(--accent-color); border: none;" onclick="generarReceta()">Generar Receta (IA)</button><br>
+                    <!-- SAMR-US-2.2: Botón para solicitar el resumen RAG bibliográfico del especialista -->
+                    <button id="btn-resumen-bibliografico" class="btn btn-outline-info btn-sm mb-2 w-100" onclick="solicitarResumenBibliografico()" title="Genera un resumen clínico técnico sustentado en libros médicos (Harrison's, Tintinalli's, etc.) para evitar alucinaciones de IA">📚 Resumen Bibliográfico (RAG)</button>
                     <button id="btn-firmar-receta" class="btn btn-outline-success btn-sm w-100" style="display:none;" onclick="firmarReceta()">Firmar Electrónicamente</button>
                 </div>
             </div>
@@ -71,6 +104,40 @@
     </div>
     </div>
 </div>
+
+<!-- Modals must be outside of transformed/filtered containers -->
+{% for triaje in triajes_pendientes %}
+    {% if triaje.nivel_alerta == 'bajo' %}
+    <div class="modal fade" id="detalleModal{{ triaje.id }}" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg" style="background: #1e293b; border: 1px solid rgba(255,255,255,0.15); color: #f8fafc; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;">
+          <div class="modal-header border-bottom" style="border-color: rgba(255,255,255,0.1) !important;">
+            <h5 class="modal-title fw-bold">Detalles del Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <h6 class="text-success">Síntomas Reportados:</h6>
+            <p class="text-sm opacity-75">{{ triaje.sintomas_reportados }}</p>
+            
+            <h6 class="text-success mt-3">Resumen Médico (IA):</h6>
+            <p class="text-sm opacity-75">{{ triaje.resumen_medico }}</p>
+            
+            <h6 class="text-success mt-3">Respuesta enviada al paciente:</h6>
+            <p class="text-sm opacity-75">{{ triaje.respuesta_ia }}</p>
+            
+            <div class="alert alert-info mt-3 p-2 text-sm border-0" style="background: rgba(14, 165, 233, 0.1); color: #7dd3fc;">
+              <i class="bi bi-info-circle"></i> Este caso fue catalogado como baja prioridad, usualmente no requiere teleconsulta de urgencia, pero puede conectarse si lo considera necesario.
+            </div>
+          </div>
+          <div class="modal-footer border-top" style="border-color: var(--glass-border) !important;">
+            <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" class="btn btn-success btn-sm" data-bs-dismiss="modal" onclick="aceptarTriaje('{{ triaje.id }}')">Conectar con Paciente</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+{% endfor %}
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -264,6 +331,60 @@
             alert("Error de red.");
             btnFirmar.disabled = false;
             btnFirmar.innerHTML = 'Firmar Electrónicamente';
+        });
+    }
+
+    // SAMR-US-2.2: Función para solicitar el resumen RAG bibliográfico del especialista.
+    // Llama al endpoint /api/triaje/<id>/resumen_especialista/ y muestra el resumen
+    // técnico junto con las referencias bibliográficas citadas (libros médicos reales).
+    function solicitarResumenBibliografico() {
+        if (!currentTriajeId) return;
+        const btn = document.getElementById('btn-resumen-bibliografico');
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Consultando bibliografía...';
+
+        fetch(`/api/triaje/${currentTriajeId}/resumen_especialista/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '📚 Resumen Bibliográfico (RAG)';
+
+            if (data.status === 'success') {
+                // Mostrar el contenedor del resumen bibliográfico
+                document.getElementById('biblio-rag-container').style.display = 'block';
+                document.getElementById('biblio-resumen-text').textContent = data.resumen;
+
+                // Renderizar las referencias bibliográficas como badges
+                const refsContainer = document.getElementById('biblio-referencias-list');
+                refsContainer.innerHTML = `<small class="text-info opacity-75">📖 ${data.num_referencias} fuente(s) bibliográfica(s) consultada(s):</small><br>`;
+
+                if (data.referencias && data.referencias.length > 0) {
+                    data.referencias.forEach(ref => {
+                        const badge = document.createElement('span');
+                        badge.className = 'badge me-1 mt-1 d-inline-block';
+                        badge.style.cssText = 'background: rgba(147,197,253,0.15); color: #93c5fd; border: 1px solid rgba(147,197,253,0.3); font-size: 0.7rem; white-space: normal; text-align: left;';
+                        badge.title = `${ref.capitulo} — pp. ${ref.paginas}`;
+                        badge.innerHTML = `[${ref.id}] ${ref.autores.split(',')[0]} et al. (${ref.anio}) — <em>${ref.titulo_libro.substring(0, 30)}...</em> pp. ${ref.paginas}`;
+                        refsContainer.appendChild(badge);
+                    });
+                }
+            } else {
+                alert('Error al generar el resumen bibliográfico: ' + data.message);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            btn.disabled = false;
+            btn.innerHTML = '📚 Resumen Bibliográfico (RAG)';
+            alert('Error de red al solicitar el resumen bibliográfico.');
         });
     }
 </script>
