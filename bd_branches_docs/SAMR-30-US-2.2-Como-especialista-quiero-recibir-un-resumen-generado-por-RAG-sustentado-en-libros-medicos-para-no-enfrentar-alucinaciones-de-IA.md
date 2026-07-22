@@ -2,8 +2,8 @@
 
 > **Rama:** `SAMR-30-US-2.2-Como-especialista-quiero-recibir-un-resumen-generado-por-RAG-sustentado-en-libros-médicos-para-no-enfrentar-alucinaciones-de-IA`  
 > **Épica:** SAMR-2 — Motor de Triaje IA con Explicabilidad (XAI)  
-> **Rol:** Capa de Base de Datos & Persistencia  
-> **Fecha de implementación:** 2026-07-20  
+> **Rol:** Capa de Base de Datos, Backend & UI  
+> **Fecha de actualización:** 2026-07-21  
 > **Estado:** ✅ Implementado
 
 ---
@@ -21,28 +21,26 @@ para no enfrentar alucinaciones de IA al tomar decisiones clínicas.
 
 | # | Criterio | Mecanismo de Verificación |
 |---|----------|--------------------------|
-| CA-1 | El resumen médico debe citar al menos una fuente bibliográfica verificada cuando los síntomas sean reconocibles | Campo `fuentes_rag` en `TriageLog` ≠ `null` |
-| CA-2 | El LLM no debe generar diagnósticos fuera del contexto bibliográfico provisto | Instrucción explícita en `system_instruction` del prompt |
-| CA-3 | El especialista puede ver en el panel qué libros médicos respaldaron el resumen | `fuentes_rag` accesible desde el `TriageLog` |
-| CA-4 | Si no existe contexto relevante en la KB, el sistema sigue funcionando con degradación elegante | `rag_result["encontrado"] == False` → `fuentes_rag = null` |
-| CA-5 | Las citas quedan registradas de forma inmutable junto al triaje | `fuentes_rag` almacenado en la misma fila que el triaje |
+| CA-1 | El resumen para el especialista debe incluir referencias de libros médicos verificables. | Se devuelven citas formateadas y los fragmentos exactos usados. |
+| CA-2 | El motor RAG debe ser independiente del triaje inicial del paciente. | Se implementa `specialist_rag_engine.py` y una ruta dedicada. |
+| CA-3 | El especialista debe poder solicitar este resumen explícitamente desde su panel. | Botón "Resumen Bibliográfico" en `panel_medico.html`. |
+| CA-4 | Las consultas y resultados RAG quedan registrados para trazabilidad. | Se guarda en el nuevo modelo `ResumenEspecialistaRAG`. |
+| CA-5 | Toda la operación es registrada para cumplir con ISO 27001. | Se genera un registro inmutable en `AuditLog`. |
 
 ---
 
 ## 2. Problema que Resuelve
 
-Los **Modelos de Lenguaje Grande (LLM)** como GPT-4o-mini tienen tendencia a generar información médica plausible pero incorrecta, fenómeno conocido como **alucinación**. En un sistema de triaje de emergencias médicas, una alucinación puede llevar a:
+Los **Modelos de Lenguaje (LLM)** tienen tendencia a generar información médica plausible pero incorrecta, conocido como **alucinación**. Para un especialista, un resumen de triaje sin sustento técnico puede llevar a:
 
-- Clasificación incorrecta del nivel de alerta (ej: triaje verde en un infarto)
-- Recomendaciones farmacológicas con dosis erróneas
-- Pre-diagnósticos que contradigan la evidencia clínica publicada
-- Pérdida de confianza del especialista en el sistema
+- Dudas sobre la validez del pre-diagnóstico.
+- Toma de decisiones con información fabricada por la IA.
+- Pérdida de confianza en el sistema SAMR-IA.
 
-La técnica **RAG (Retrieval-Augmented Generation)** soluciona esto:
-1. **Antes** de llamar al LLM, se recuperan fragmentos de literatura médica oficial
-2. Esos fragmentos se inyectan en el prompt como contexto verificado
-3. El LLM queda **instruido a razonar solo dentro de ese contexto**
-4. El especialista recibe el resumen **con las citas** que lo respaldan
+La técnica **RAG (Retrieval-Augmented Generation)** resuelve esto:
+1. **Antes** de consultar a la IA para generar el resumen final, recuperamos fragmentos reales de libros médicos.
+2. Esos fragmentos se inyectan en el prompt como "contexto verificable".
+3. El LLM es forzado a redactar su resumen técnico **citando exclusivamente** esas fuentes bibliográficas.
 
 ---
 
@@ -50,211 +48,77 @@ La técnica **RAG (Retrieval-Augmented Generation)** soluciona esto:
 
 ### 3.1 Archivos Creados (NUEVOS)
 
-#### [`core/rag_medical_kb.py`](../SAMRpg/core/rag_medical_kb.py) — Motor RAG Completo
-
-Es el módulo central de esta historia. Contiene tres componentes:
-
-| Componente | Elemento de código | Descripción |
-|---|---|---|
-| Knowledge Base | `MEDICAL_KNOWLEDGE_BASE` (dict) | 10 categorías de síntomas curadas con fragmentos de libros médicos y sus referencias APA |
-| Retriever | `retrieve_medical_context(user_message, max_results=3)` | Busca los fragmentos más relevantes por coincidencia de palabras clave con puntaje de relevancia |
-| Context Builder | `build_rag_context_block(rag_result)` | Ensambla el bloque de texto listo para inyectar en el prompt del LLM |
-
-**Fuentes médicas indexadas en la Knowledge Base:**
-
-| Libro / Guía | Categorías cubiertas |
+| Archivo | Descripción |
 |---|---|
-| *Harrison's Principles of Internal Medicine, 21ª Ed.* (McGraw-Hill, 2022) | Disnea, ACV, Fiebre/Sepsis, Anafilaxis, Ansiedad |
-| *Braunwald's Heart Disease, 12ª Ed.* (Elsevier, 2022) | Dolor de pecho/Infarto, Fibrilación Auricular |
-| *Tintinalli's Emergency Medicine, 9ª Ed.* (McGraw-Hill, 2020) | Síncope, Dolor Abdominal, Trauma |
-| *GOLD Guidelines 2024* | Asma, EPOC |
-| *Guías AHA/ACC 2023* | Síndromes coronarios |
-| *Guías MSP Ecuador 2023* | Contexto normativo local |
-
-#### [`core/migrations/0006_triagelog_fuentes_rag.py`](../SAMRpg/core/migrations/0006_triagelog_fuentes_rag.py) — Migración de BD
-
-Agrega el campo `fuentes_rag` (JSONField, nullable) a la tabla `core_triagelog`.
-
----
+| [`core/medical_bibliography.py`](../SAMRpg/core/medical_bibliography.py) | **Base de Conocimiento Bibliográfica:** Diccionario con 14 fragmentos de libros médicos reales (Harrison's, Tintinalli's, Braunwald's, Nelson, etc.). Cada entrada tiene `titulo_libro`, `autores`, `paginas`, `contenido` y `palabras_clave`. |
+| [`core/specialist_rag_engine.py`](../SAMRpg/core/specialist_rag_engine.py) | **Motor RAG Especialista:** Algoritmo que recibe síntomas, tokeniza, calcula el score de relevancia contra la bibliografía y extrae el "Top 3" de fragmentos. Construye el contexto APA para OpenAI. |
+| [`core/migrations/0007_samr_us22_resumen_especialista_rag.py`](../SAMRpg/core/migrations/0007_samr_us22_resumen_especialista_rag.py) | **Migración BD:** Crea la tabla para el modelo `ResumenEspecialistaRAG`. |
 
 ### 3.2 Archivos Modificados (EXISTENTES)
 
-#### [`core/models.py`](../SAMRpg/core/models.py)
-
-**Cambio:** Se añadió el campo `fuentes_rag` al modelo `TriageLog`.
-
-```python
-# Antes (sin US-2.2)
-class TriageLog(models.Model):
-    paciente            = models.ForeignKey(...)
-    sintomas_reportados = models.TextField()
-    nivel_alerta        = models.CharField(...)
-    respuesta_ia        = models.TextField()
-    resumen_medico      = models.TextField()
-    estado_asignacion   = models.CharField(...)
-    timestamp           = models.DateTimeField(auto_now_add=True)
-```
-
-```python
-# Después (con US-2.2 — campo nuevo resaltado)
-class TriageLog(models.Model):
-    paciente            = models.ForeignKey(...)
-    sintomas_reportados = models.TextField()
-    nivel_alerta        = models.CharField(...)
-    respuesta_ia        = models.TextField()
-    resumen_medico      = models.TextField()
-    estado_asignacion   = models.CharField(...)
-    timestamp           = models.DateTimeField(auto_now_add=True)
-    # ► NUEVO US-2.2
-    fuentes_rag         = models.JSONField(null=True, blank=True,
-                              help_text="[US-2.2] Citas bibliográficas del RAG")
-```
-
-**Impacto en la tabla `core_triagelog`:**
-
-| Operación SQL generada | Descripción |
-|---|---|
-| `ALTER TABLE core_triagelog ADD COLUMN fuentes_rag JSON NULL` | Agrega el campo sin romper registros existentes |
+| Archivo | Acción | Descripción del cambio |
+|---|---|---|
+| [`core/models.py`](../SAMRpg/core/models.py) | **AGREGADO** | Se agregó el modelo `ResumenEspecialistaRAG` relacionado (OneToOne) con `TriageLog`. Guarda el `resumen_generado` y las `referencias_bibliograficas` en formato JSON. |
+| [`core/urls.py`](../SAMRpg/core/urls.py) | **AGREGADO** | Nueva ruta `/api/triaje/<int:triaje_id>/resumen_especialista/` que expone la función al Frontend. |
+| [`core/views.py`](../SAMRpg/core/views.py) | **AGREGADO** | Nueva vista `resumen_especialista_rag`. Protegida por RBAC (solo especialistas). Oculta PII (US-4.1). Llama al RAG bibliográfico y luego a `gpt-4o-mini`. Persiste en BD y genera `AuditLog`. |
+| [`templates/panel_medico.html`](../SAMRpg/templates/panel_medico.html) | **MODIFICADO** | UI: Se agregó el botón **"📚 Resumen Bibliográfico (RAG)"** y un contenedor colapsable que renderiza el resumen técnico y *badges* dinámicos con las citas de los libros y sus páginas. |
 
 ---
 
-#### [`core/views.py`](../SAMRpg/core/views.py)
+## 4. Esquema de Base de Datos — Nuevo Modelo
 
-**Cambio:** Se integró el motor RAG dentro de la función `chatbot_api`.
+### Tabla `core_resumenespecialistarag`
 
-**Líneas afectadas:** importación (línea 21-23), lógica RAG (antes del `client = OpenAI()`), creación del `TriageLog`.
+El nuevo modelo almacena cada resumen generado para garantizar trazabilidad.
 
-**Flujo completo modificado:**
-
-```
-Mensaje del paciente (user_message)
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  PASO RAG [NUEVO - US-2.2]                                      │
-│                                                                 │
-│  rag_result = retrieve_medical_context(user_message)            │
-│      └─ Analiza keywords del mensaje                            │
-│      └─ Busca en MEDICAL_KNOWLEDGE_BASE                         │
-│      └─ Retorna top-3 fragmentos + citas_apa + encontrado:bool  │
-│                                                                 │
-│  rag_context = build_rag_context_block(rag_result)              │
-│      └─ Formatea los fragmentos como bloque de texto            │
-│      └─ Cadena vacía si encontrado=False                        │
-└─────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  SYSTEM_INSTRUCTION AUMENTADO [MODIFICADO - US-2.2]             │
-│                                                                 │
-│  "Eres SAMR-IA..." + contexto_clínico + rag_context             │
-│                          │                     │                │
-│                          │                     └─ fragmentos de │
-│                          │                        libros médicos│
-│                          └─ Edad, sexo, historial, telemetría   │
-└─────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-  GPT-4o-mini genera JSON:
-  {
-    "nivel_alerta":     "critico|medio|bajo",
-    "respuesta_paciente": "...",
-    "resumen_medico":   "... 📚 Referencias: [fuentes RAG]"
-  }
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  PERSISTENCIA [MODIFICADO - US-2.2]                             │
-│                                                                 │
-│  TriageLog.objects.create(                                      │
-│      ...                                                        │
-│      fuentes_rag = rag_result["citas_apa"]  # ← NUEVO CAMPO     │
-│                   if rag_result["encontrado"] else None         │
-│  )                                                              │
-└─────────────────────────────────────────────────────────────────┘
+```python
+class ResumenEspecialistaRAG(models.Model):
+    triaje = models.OneToOneField(TriageLog, on_delete=models.CASCADE, related_name='resumen_especialista')
+    resumen_generado = models.TextField()
+    referencias_bibliograficas = models.TextField() # JSON serializado con las fuentes
+    ids_referencias_usadas = models.CharField(max_length=200, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
 ```
 
----
-
-## 4. Esquema de Base de Datos — Cambio en `core_triagelog`
-
-### Antes de la migración `0006`
-
-```sql
-CREATE TABLE core_triagelog (
-    id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
-    paciente_id         BIGINT NOT NULL REFERENCES core_paciente(id),
-    sintomas_reportados TEXT NOT NULL,
-    nivel_alerta        VARCHAR(20) NOT NULL,
-    respuesta_ia        TEXT NOT NULL,
-    resumen_medico      TEXT NOT NULL,
-    estado_asignacion   VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE',
-    timestamp           DATETIME NOT NULL
-);
-```
-
-### Después de la migración `0006`
-
-```sql
-ALTER TABLE core_triagelog
-    ADD COLUMN fuentes_rag JSON NULL
-        COMMENT '[US-2.2] Citas bibliográficas del motor RAG que sustentaron el resumen médico.';
-```
-
-### Ejemplo de registro en la BD post-US-2.2
-
+**Ejemplo de referencias guardadas (JSON):**
 ```json
-{
-  "id": 42,
-  "paciente_id": 7,
-  "sintomas_reportados": "tengo dolor de pecho muy fuerte, me irradia al brazo izquierdo",
-  "nivel_alerta": "critico",
-  "respuesta_ia": "🚨 [ALERTA ROJA] He detectado síntomas que requieren atención inmediata...",
-  "resumen_medico": "Paciente masculino 58 años con dolor torácico retroesternal irradiado al brazo izquierdo... Escala HEART score preliminar: alto riesgo. 📚 Referencias: Braunwald's Heart Disease, 12ª Ed. (Elsevier, 2022) — Cap. 56",
-  "estado_asignacion": "PENDIENTE",
-  "timestamp": "2026-07-20T05:30:00Z",
-  "fuentes_rag": [
-    "Braunwald's Heart Disease, 12ª Ed. (Elsevier, 2022) — Cap. 56: Chest Pain",
-    "Harrison's Principles of Internal Medicine, 21ª Ed. (McGraw-Hill, 2022) — Cap. 33: Dyspnea"
-  ]
-}
+[
+  {
+    "id": "BIB-001",
+    "titulo_libro": "Braunwald's Heart Disease",
+    "autores": "Libby P, Bonow RO...",
+    "edicion": "12th Edition",
+    "paginas": "1228-1265",
+    "relevancia_score": 12.5
+  }
+]
 ```
 
 ---
 
 ## 5. Arquitectura RAG Implementada
 
-### Patrón: Keyword-Based Retrieval (prototipo académico)
-
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                   PIPELINE RAG — SAMR-IA US-2.2                     │
+│             PIPELINE RAG ESPECIALISTA — SAMR-IA US-2.2               │
 └──────────────────────────────────────────────────────────────────────┘
 
-  [1] QUERY                [2] RETRIEVAL              [3] AUGMENTATION
-  ───────────              ─────────────              ────────────────
-  user_message        →   MEDICAL_KNOWLEDGE_BASE  →   system_instruction
-  "dolor de pecho"        keyword scoring              + fragmentos RAG
-                          top-K ranking                + instrucción XAI
-                          fragmentos + citas
+  [1] FRONTEND (panel_medico)   [2] RETRIEVAL (specialist_rag_engine)
+  ─────────────────────────     ────────────────────────────────────
+  Clic en "Resumen RAG"     →   Extrae síntomas + resumen inicial
+                                Busca en medical_bibliography.py
+                                Retorna top-K libros médicos
 
-  [4] GENERATION           [5] PERSISTENCE
-  ──────────────           ───────────────
-  GPT-4o-mini          →   TriageLog.fuentes_rag
-  resumen con citas         (JSONField en BD)
+  [3] AUGMENTATION (views.py)   [4] GENERATION (OpenAI GPT-4o-mini)
+  ─────────────────────────     ───────────────────────────────────
+  System Prompt + PII oculto →  Genera resumen clínico TÉCNICO
+  + Contexto bibliográfico      citando explícitamente (Autor, Año, pp.)
+
+  [5] PERSISTENCE (models.py)   [6] FRONTEND (UI)
+  ─────────────────────────     ───────────────────────────────────
+  Guarda en ResumenEspecialistaRAG  Muestra resumen técnico +
+  Genera AuditLog (WORM)        →   Badges con referencias bibliográficas
 ```
-
-### Escalabilidad hacia Producción
-
-En el prototipo, el retriever usa **coincidencia de palabras clave** (simple y sin dependencias externas). Para producción, la interfaz pública `retrieve_medical_context()` puede ser reemplazada por:
-
-| Componente | Prototipo (actual) | Producción (roadmap) |
-|---|---|---|
-| Knowledge Base | Diccionario Python en memoria | PDFs de libros médicos indexados |
-| Retriever | Keyword matching | Embeddings + búsqueda coseno |
-| Vector Store | N/A | `pgvector` (PostgreSQL) o Pinecone |
-| Embedding Model | N/A | `text-embedding-3-small` (OpenAI) |
-| Interfaz pública | `retrieve_medical_context()` | **Misma firma** (sin cambios en views.py) |
 
 ---
 
@@ -262,11 +126,11 @@ En el prototipo, el retriever usa **coincidencia de palabras clave** (simple y s
 
 | Historia relacionada | Conexión |
 |---|---|
-| **US-2.1** — Triaje IA básico | Esta historia extiende el endpoint `chatbot_api` existente sin romper su funcionalidad |
-| **SAMR-9** — Gestión de Identidad | `fuentes_rag` queda protegido por el mismo RBAC de `TriageLog` |
-| **ISO 27001 Audit Trail** | La creación de `TriageLog` con `fuentes_rag` ya es auditada por el `AuditLog` existente |
-| **LOPDP Ecuador** | `fuentes_rag` no contiene PII — son solo citas bibliográficas, sin datos del paciente |
-| **XAI (Explicabilidad IA)** | `fuentes_rag` es la implementación directa del principio de explicabilidad requerido |
+| **US-2.1** — Triaje IA básico | Este RAG es un **segundo nivel** de análisis, más profundo y exclusivo para el médico, sin alterar el flujo original del paciente. |
+| **SAMR-9** — Gestión de Identidad | La vista requiere `@login_required` y `@rol_requerido(['MEDICO_ESPECIALISTA', 'MEDICO_ASISTENTE'])`. |
+| **US-4.1** — Privacidad PII | Antes de enviar el contexto clínico a OpenAI y al RAG, se usa `ofuscar_pii(sintomas)`. |
+| **ISO 27001 Audit Trail** | Cada vez que un médico pide el resumen bibliográfico, se crea un hash criptográfico en `AuditLog`. |
+| **XAI (Explicabilidad IA)** | Es la materialización definitiva de XAI para el cuerpo médico: la IA ya no opina, sino que procesa, cita y resume libros médicos de la KB. |
 
 ---
 
@@ -274,49 +138,23 @@ En el prototipo, el retriever usa **coincidencia de palabras clave** (simple y s
 
 ### Paso 1 — Aplicar la migración
 
+Al actualizar desde el repositorio, el servidor requiere que se aplique la nueva migración:
+
 ```bash
 cd SAMRpg
-python manage.py migrate core 0006_triagelog_fuentes_rag
+# Activar entorno virtual
+.\venv\Scripts\Activate.ps1
+# Aplicar la migración 0007_samr_us22_resumen_especialista_rag
+python manage.py migrate
 ```
 
-### Paso 2 — Verificar la migración
+### Paso 2 — Ejecutar el servidor y probar
 
-```bash
-python manage.py showmigrations core
-# Esperado: [X] 0006_triagelog_fuentes_rag
-```
-
-### Paso 3 — Verificar el nuevo módulo RAG
-
-```bash
-python manage.py shell
->>> from core.rag_medical_kb import retrieve_medical_context
->>> r = retrieve_medical_context("tengo dolor de pecho y me irradia al brazo")
->>> r["encontrado"]
-True
->>> r["citas_apa"]
-["Braunwald's Heart Disease, 12ª Ed. (Elsevier, 2022) — Cap. 56: Chest Pain"]
-```
-
-### Paso 4 — Ejecutar tests
-
-```bash
-python manage.py test core
-```
-
-> [!NOTE]
-> No se requieren cambios en variables de entorno (`.env`). El módulo `rag_medical_kb.py` opera en memoria, sin conexión a servicios externos. La clave `OPENAI_API_KEY` ya configurada es suficiente.
-
----
-
-## 8. Resumen de Archivos Tocados
-
-| Archivo | Acción | Descripción del cambio |
-|---------|--------|------------------------|
-| `core/rag_medical_kb.py` | **CREADO** | Motor RAG completo: Knowledge Base, Retriever, Context Builder |
-| `core/models.py` | **MODIFICADO** | Campo `fuentes_rag` (JSONField) agregado a `TriageLog` |
-| `core/views.py` | **MODIFICADO** | `chatbot_api`: import RAG, paso de recuperación, inyección en prompt, persistencia en `TriageLog` |
-| `core/migrations/0006_triagelog_fuentes_rag.py` | **CREADO** | Migración Django que ejecuta el `ALTER TABLE` |
+1. Iniciar servidor: `python manage.py runserver`
+2. Entrar a `/login/` con credenciales de especialista (ej. `doctor@samria.com`) e ingresar el OTP.
+3. Ir al Panel Médico, aceptar un triaje pendiente.
+4. En el panel de acciones, presionar **"📚 Resumen Bibliográfico (RAG)"**.
+5. Verificar que se despliega el resumen clínico con los "badges" celestes de las fuentes.
 
 ---
 
