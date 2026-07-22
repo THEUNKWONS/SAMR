@@ -1,32 +1,107 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const chatbotBtn = document.getElementById('chatbot-toggle');
-    const sidebarChatbotToggle = document.getElementById('sidebar-chatbot-toggle');
-    const chatbotWindow = document.getElementById('chatbot-window');
-    const closeBtn = document.getElementById('close-chat');
     const sendBtn = document.getElementById('send-msg');
     const chatInput = document.getElementById('chat-input');
     const chatMessages = document.getElementById('chat-messages');
 
-    // Toggle window
-    chatbotBtn.addEventListener('click', () => {
-        chatbotWindow.classList.toggle('active');
-        if (chatbotWindow.classList.contains('active')) {
-            chatInput.focus();
-        }
-    });
+    if (!chatMessages) return; // Si no estamos en la página del chat, no ejecutar nada.
 
-    if (sidebarChatbotToggle) {
-        sidebarChatbotToggle.addEventListener('click', (e) => {
-            e.preventDefault();
-            chatbotWindow.classList.toggle('active');
-            if (chatbotWindow.classList.contains('active')) {
-                chatInput.focus();
-            }
-        });
+    // Leer parámetros IoT de la URL (si venimos del Dashboard de Triaje)
+    const urlParams = new URLSearchParams(window.location.search);
+    const iotBpm = urlParams.get('iot_bpm');
+    const iotSpo2 = urlParams.get('iot_spo2');
+    
+    if (iotBpm && iotSpo2) {
+        chatInput.value = `[ALERTA IoT] Ritmo Cardíaco: ${iotBpm} BPM, SpO2: ${iotSpo2}%. Mis síntomas son: `;
+        chatInput.focus();
+        
+        // Limpiar la URL para que si recarga no vuelva a inyectarlo
+        window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    closeBtn.addEventListener('click', () => {
-        chatbotWindow.classList.remove('active');
+    // SAMR-28-US-1.6: Edge AI/offline-first. Guardar localmente los síntomas cuando no hay red y reenviar al reconectar.
+    const offlineQueueKey = 'samr-offline-symptoms-queue';
+
+    const getOfflineQueue = () => {
+        try {
+            const queueJson = localStorage.getItem(offlineQueueKey);
+            return queueJson ? JSON.parse(queueJson) : [];
+        } catch (err) {
+            console.error('Error leyendo cola offline:', err);
+            return [];
+        }
+    };
+
+    const setOfflineQueue = (queue) => {
+        localStorage.setItem(offlineQueueKey, JSON.stringify(queue));
+    };
+
+    const enqueueOfflineMessage = (message) => {
+        const queue = getOfflineQueue();
+        queue.push({ message, timestamp: new Date().toISOString() });
+        setOfflineQueue(queue);
+    };
+
+    const getCookie = (name) => {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    };
+
+    const flushOfflineQueue = async () => {
+        const queue = getOfflineQueue();
+        if (!queue.length) return;
+
+        appendMessage('bot', `Restablecida la conexión. Enviando ${queue.length} síntoma(s) guardado(s) localmente...`, 'system-msg');
+        const remaining = [];
+
+        for (const item of queue) {
+            try {
+                const response = await fetch('/api/chatbot/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({ message: item.message })
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    appendMessage('bot', `✅ Síntomas previamente guardados enviados correctamente.`, 'system-msg');
+                } else {
+                    remaining.push(item);
+                    console.warn('No se pudo reenviar mensaje offline:', data);
+                }
+            } catch (error) {
+                remaining.push(item);
+                console.warn('Error reenviando cola offline:', error);
+            }
+        }
+
+        setOfflineQueue(remaining);
+        if (remaining.length > 0) {
+            appendMessage('bot', 'Algunos síntomas siguen pendientes. Se reenviarán cuando la conexión sea estable.', 'system-msg');
+        } else {
+            appendMessage('bot', 'Todos los síntomas locales fueron enviados al servidor.', 'system-msg');
+        }
+    };
+
+    window.addEventListener('online', () => {
+        appendMessage('bot', 'Conexión restaurada. Intentando enviar los síntomas guardados...', 'system-msg');
+        flushOfflineQueue();
+    });
+
+    window.addEventListener('offline', () => {
+        appendMessage('bot', 'Estás sin conexión. Los síntomas se guardarán localmente y se enviarán cuando se recupere internet.', 'system-msg');
     });
 
     // Send message (Mockup)
@@ -34,28 +109,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = chatInput.value.trim();
         if (text === '') return;
 
+        // If the user is offline, queue the symptom report locally and avoid calling the API.
+        if (!navigator.onLine) {
+            appendMessage('user', text);
+            enqueueOfflineMessage(text);
+            chatInput.value = '';
+            appendMessage('bot', 'Sin conexión. Tus síntomas se han guardado localmente y se enviarán cuando recuperes internet.', 'system-msg');
+            return;
+        }
+
         // User message
         appendMessage('user', text);
         chatInput.value = '';
 
+        // SAMR-32-US-2.4: En la arquitectura, este cliente debe empaquetar la telemetría inmediata de los sensores IoT
+        // junto con los síntomas antes de invocar al motor LLM / endpoint de triaje. Es una responsabilidad de Edge
+        // AI conectar datos locales de IoT con el mensaje clínico para mejorar la inferencia y el contexto.
         // Bot response (API Fetch)
         appendMessage('bot', '...', 'loading-msg'); // Loading indicator
-
-        // Extract CSRF token from cookies
-        const getCookie = (name) => {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
-        };
 
         fetch('/api/chatbot/', {
             method: 'POST',
@@ -81,7 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error:', error);
             const loadingMsg = document.querySelector('.loading-msg');
             if (loadingMsg) loadingMsg.remove();
-            appendMessage('bot', 'Error de red.');
+            enqueueOfflineMessage(text);
+            appendMessage('bot', 'No se pudo enviar. Tus síntomas se han guardado localmente y se enviarán cuando haya conexión.', 'system-msg');
         });
     };
 
@@ -103,7 +175,8 @@ document.addEventListener('DOMContentLoaded', () => {
             recognition.maxAlternatives = 1;
 
             recognition.onstart = function() {
-                micBtn.style.color = 'red';
+                micBtn.classList.remove('text-light');
+                micBtn.classList.add('text-danger');
                 chatInput.placeholder = "Escuchando...";
             };
 
@@ -115,13 +188,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             recognition.onspeechend = function() {
                 recognition.stop();
-                micBtn.style.color = '';
+                micBtn.classList.remove('text-danger');
+                micBtn.classList.add('text-light');
                 chatInput.placeholder = "Escribe tu mensaje...";
             };
 
             recognition.onerror = function(event) {
                 console.error("Speech recognition error", event.error);
-                micBtn.style.color = '';
+                micBtn.classList.remove('text-danger');
+                micBtn.classList.add('text-light');
                 chatInput.placeholder = "Escribe tu mensaje...";
                 appendMessage('bot', 'No pude escucharte bien. ¿Puedes intentarlo de nuevo?');
             };
@@ -137,12 +212,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function appendMessage(sender, text, extraClass = null) {
         const msgDiv = document.createElement('div');
-        msgDiv.classList.add('message', sender);
+        msgDiv.classList.add('message', sender, 'mb-4');
         if (extraClass) {
             msgDiv.classList.add(extraClass);
         }
-        msgDiv.style.whiteSpace = 'pre-wrap';
-        msgDiv.textContent = text;
+
+        const iconClass = sender === 'user' ? 'bi-person-fill' : 'bi-robot';
+        
+        msgDiv.innerHTML = `
+            <div class="d-flex align-items-start">
+                <div class="avatar-circle text-white me-2 mt-1 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 32px; height: 32px; border-radius: 50%; ${sender === 'bot' ? 'background-color: var(--accent-color);' : ''}">
+                    <i class="bi ${iconClass} fs-6"></i>
+                </div>
+                <div class="p-3 rounded-4 bg-dark bg-opacity-75 text-white content-text" style="border-top-left-radius: 0 !important; max-width: 80%; white-space: pre-wrap;">
+                </div>
+            </div>
+        `;
+        
+        // Asignar el texto de forma segura para evitar XSS
+        msgDiv.querySelector('.content-text').textContent = text;
+
         chatMessages.appendChild(msgDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }

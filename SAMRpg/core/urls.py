@@ -16,12 +16,19 @@ urlpatterns = [
     path('triaje/', views.triaje_inteligente, name='triaje_inteligente'),
     path('panel-medico/', views.panel_especialista, name='panel_especialista'),
     path('historial/', views.historial_clinico, name='historial_clinico'),
+    path('asistente/', views.asistente_virtual, name='asistente_virtual'),
     
     # API endpoints
+    # ruta para el endpoint del bot de la historia US-1.4
     path('api/chatbot/', views.chatbot_api, name='chatbot_api'),
     path('api/triaje/<int:triaje_id>/aceptar/', views.aceptar_triaje, name='aceptar_triaje'),
     path('api/triaje/<int:triaje_id>/generar_receta/', views.generar_receta, name='generar_receta'),
     path('api/triaje/<int:triaje_id>/firmar_receta/', views.firmar_receta, name='firmar_receta'),
     path('api/triaje/<int:triaje_id>/chat/', views.medico_chat_api, name='medico_chat_api'),
     path('api/triaje/<int:triaje_id>/ambulancia/', views.solicitar_ambulancia, name='solicitar_ambulancia'),
+    path('api/receta/<int:receta_id>/validar/', views.validar_receta, name='validar_receta'),
+    
+    # Interoperabilidad FHIR (SAMR-22)
+    path('api/fhir/paciente/<int:paciente_id>/', views.exportar_fhir_paciente, name='exportar_fhir_paciente'),
+    path('api/fhir/triaje/<int:triaje_id>/', views.exportar_fhir_triaje, name='exportar_fhir_triaje'),
 ]
