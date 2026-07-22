@@ -57,3 +57,50 @@ class PacienteConsumer(AsyncWebsocketConsumer):
             'type': 'medico_conectado',
             'message': event['message']
         }))
+
+# SAMR-US-4.3: Consumidor de WebSocket para ingestión de telemetría IoT.
+# Los dispositivos se conectan a esta ruta para transmitir sus datos en tiempo real.
+from channels.db import database_sync_to_async
+
+class IoTTelemetriaConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        user = self.scope["user"]
+        # Solo pacientes pueden enviar telemetría de sus propios dispositivos
+        if user.is_anonymous or user.tipoUsuario != 'PACIENTE':
+            await self.close()
+            return
+            
+        self.paciente_id = user.perfil_paciente.id
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        pass
+
+    async def receive(self, text_data):
+        try:
+            data = json.loads(text_data)
+            # Guardamos la telemetría en base de datos.
+            # El campo datosTelemetria está cifrado por defecto (US-4.2).
+            # estadoProcesamiento se guarda como 'Pendiente' para que el Motor ML lo procese luego.
+            await self.guardar_telemetria(data)
+            
+            await self.send(text_data=json.dumps({
+                'status': 'success',
+                'message': 'Lectura registrada y encolada para el Motor ML'
+            }))
+        except Exception as e:
+            await self.send(text_data=json.dumps({
+                'status': 'error',
+                'message': str(e)
+            }))
+
+    @database_sync_to_async
+    def guardar_telemetria(self, datos_json):
+        from .models import Telemetria
+        Telemetria.objects.create(
+            paciente_id=self.paciente_id,
+            datosTelemetria=datos_json,
+            umbralAnomalia='Pendiente',
+            estadoProcesamiento='Pendiente'
+        )
+
