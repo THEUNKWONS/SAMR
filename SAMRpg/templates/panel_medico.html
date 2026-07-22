@@ -13,22 +13,24 @@
             {% for triaje in triajes_pendientes %}
                 {% if triaje.nivel_alerta == 'critico' %}
                 <div class="alert alert-warning border-0" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5;" id="triaje-alert-{{ triaje.id }}">
-                    <strong>¡Alerta Crítica!</strong>
+                    <strong>¡Alerta Crítica! <span class="badge bg-danger ms-2">{{ triaje.especialidad_requerida.nombre|default:"General" }}</span></strong>
                     <p class="mb-1 text-sm">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico }}</p>
                     <button class="btn btn-sm btn-danger mt-2" onclick="aceptarTriaje('{{ triaje.id }}')">Aceptar y Conectar</button>
                 </div>
                 {% elif triaje.nivel_alerta == 'medio' %}
                 <div class="alert border-0" style="background: rgba(255, 255, 255, 0.05); color: var(--text-color);" id="triaje-alert-{{ triaje.id }}">
-                    <strong>Alerta Media</strong>
+                    <strong>Alerta Media <span class="badge bg-secondary ms-2">{{ triaje.especialidad_requerida.nombre|default:"General" }}</span></strong>
                     <p class="mb-1 text-sm text-light opacity-75">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico }}</p>
                     <button class="btn btn-sm btn-outline-light mt-2" onclick="aceptarTriaje('{{ triaje.id }}')">Revisar</button>
                 </div>
                 {% else %}
                 <div class="alert border-0" style="background: rgba(16, 185, 129, 0.1); color: #6ee7b7;">
                     <strong>Baja Prioridad</strong>
-                    <p class="mb-1 text-sm text-light opacity-75">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico }}</p>
-                    <button class="btn btn-sm btn-outline-success mt-2">Ver Detalle</button>
+                    <p class="mb-1 text-sm text-light opacity-75">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico|truncatewords:15 }}</p>
+                    <button class="btn btn-sm btn-outline-success mt-2" data-bs-toggle="modal" data-bs-target="#detalleModal{{ triaje.id }}">Ver Detalle</button>
                 </div>
+                
+
                 {% endif %}
             {% empty %}
                 <p class="text-muted text-sm">No hay ofertas de emergencia pendientes.</p>
@@ -73,8 +75,37 @@
                 </div>
             </div>
             
-            <div id="receta-container" class="mt-4 p-3 rounded" style="display: none; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); white-space: pre-wrap; font-family: monospace; font-size: 14px;">
-                <!-- Aquí aparecerá la receta generada -->
+            <div class="mt-4">
+                <textarea id="receta-container" class="form-control-custom w-100 p-3 rounded" rows="8" style="display: none; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); font-family: monospace; font-size: 14px;" placeholder="La receta se generará aquí..."></textarea>
+            </div>
+            
+            <hr class="my-4" style="border-color: var(--glass-border);">
+            
+            <!-- CHAT Y AMBULANCIA -->
+            <div class="row">
+                <div class="col-md-8">
+                    <h6>Chat con el Paciente</h6>
+                    <div id="doctor-chat-messages" class="p-2 mb-2 rounded overflow-auto" style="height: 150px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border);">
+                        <!-- Mensajes aquí -->
+                    </div>
+                    <div class="d-flex">
+                        <input type="text" id="doctor-chat-input" class="form-control-custom flex-grow-1 me-2" placeholder="Escribe un mensaje al paciente...">
+                        <button class="btn btn-primary" onclick="enviarMensajeChat()">Enviar</button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <h6>Emergencia Crítica</h6>
+                    <button class="btn btn-danger w-100 py-3 fw-bold shadow-lg" onclick="solicitarAmbulancia()" style="animation: pulse 2s infinite;">
+                        <i class="bi bi-truck-front-fill me-2"></i>SOLICITAR AMBULANCIA
+                    </button>
+                    <style>
+                        @keyframes pulse {
+                            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+                            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+                            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+                        }
+                    </style>
+                </div>
             </div>
         </div>
         <div class="glass-card p-4 d-flex justify-content-center align-items-center" id="empty-panel" style="height: 100%;">
@@ -84,7 +115,43 @@
     </div>
 </div>
 
+<!-- Modals must be outside of transformed/filtered containers -->
+{% for triaje in triajes_pendientes %}
+    {% if triaje.nivel_alerta == 'bajo' %}
+    <div class="modal fade" id="detalleModal{{ triaje.id }}" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg" style="background: #1e293b; border: 1px solid rgba(255,255,255,0.15); color: #f8fafc; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;">
+          <div class="modal-header border-bottom" style="border-color: rgba(255,255,255,0.1) !important;">
+            <h5 class="modal-title fw-bold">Detalles del Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <h6 class="text-success">Síntomas Reportados:</h6>
+            <p class="text-sm opacity-75">{{ triaje.sintomas_reportados }}</p>
+            
+            <h6 class="text-success mt-3">Resumen Médico (IA):</h6>
+            <p class="text-sm opacity-75">{{ triaje.resumen_medico }}</p>
+            
+            <h6 class="text-success mt-3">Respuesta enviada al paciente:</h6>
+            <p class="text-sm opacity-75">{{ triaje.respuesta_ia }}</p>
+            
+            <div class="alert alert-info mt-3 p-2 text-sm border-0" style="background: rgba(14, 165, 233, 0.1); color: #7dd3fc;">
+              <i class="bi bi-info-circle"></i> Este caso fue catalogado como baja prioridad, usualmente no requiere teleconsulta de urgencia, pero puede conectarse si lo considera necesario.
+            </div>
+          </div>
+          <div class="modal-footer border-top" style="border-color: var(--glass-border) !important;">
+            <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" class="btn btn-success btn-sm" data-bs-dismiss="modal" onclick="aceptarTriaje('{{ triaje.id }}')">Conectar con Paciente</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+{% endfor %}
+
 <script>
+    const doctorSpecialty = "{{ especialidad_medico_nombre|escapejs }}";
+
     document.addEventListener('DOMContentLoaded', () => {
         // Conexión WebSocket para recepción de alertas en tiempo real sin recargar (SAMR-34)
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -99,6 +166,14 @@
         socket.onmessage = function(e) {
             const data = JSON.parse(e.data);
             if (data.type === 'alerta_emergencia') {
+                const reqSpecialty = data.especialidad_requerida || 'General';
+                
+                // Matching inteligente: Filtrar si la especialidad no es General y no coincide con la del médico
+                if (reqSpecialty !== 'General' && reqSpecialty !== doctorSpecialty) {
+                    console.log(`Alerta ignorada. Requerida: ${reqSpecialty}, Médico: ${doctorSpecialty}`);
+                    return;
+                }
+
                 const isCritical = data.nivel === 'critico';
                 
                 // Crear nueva alerta HTML
@@ -109,7 +184,7 @@
                     newAlert.style.background = 'rgba(239, 68, 68, 0.2)';
                     newAlert.style.color = '#fca5a5';
                     newAlert.innerHTML = `
-                        <strong>¡Alerta Crítica!</strong>
+                        <strong>¡Alerta Crítica! <span class="badge bg-danger ms-2">${reqSpecialty}</span></strong>
                         <p class="mb-1 text-sm">Paciente: ${data.paciente}. ${data.message}</p>
                         <button class="btn btn-sm btn-danger mt-2" onclick="aceptarTriaje('${data.triaje_id}')">Aceptar y Conectar</button>
                     `;
@@ -118,7 +193,7 @@
                     newAlert.style.background = 'rgba(255, 255, 255, 0.05)';
                     newAlert.style.color = 'var(--text-color)';
                     newAlert.innerHTML = `
-                        <strong>Alerta Media</strong>
+                        <strong>Alerta Media <span class="badge bg-secondary ms-2">${reqSpecialty}</span></strong>
                         <p class="mb-1 text-sm text-light opacity-75">Paciente: ${data.paciente}. ${data.message}</p>
                         <button class="btn btn-sm btn-outline-light mt-2" onclick="aceptarTriaje('${data.triaje_id}')">Revisar</button>
                     `;
@@ -127,6 +202,10 @@
                 // Insertar justo después del h5
                 const header = alertsContainer.querySelector('h5');
                 header.insertAdjacentElement('afterend', newAlert);
+            } else if (data.type === 'chat_message_paciente') {
+                if (currentTriajeId && currentTriajeId === data.triaje_id.toString()) {
+                    appendDoctorChatMessage('Paciente', data.message, 'left');
+                }
             }
         };
 
@@ -219,7 +298,7 @@
             btnGenerar.innerHTML = 'Receta Generada';
             if (data.status === 'success') {
                 document.getElementById('receta-container').style.display = 'block';
-                document.getElementById('receta-container').textContent = data.receta;
+                document.getElementById('receta-container').value = data.receta;
                 document.getElementById('btn-firmar-receta').style.display = 'inline-block';
             } else {
                 alert("Error: " + data.message);
@@ -248,7 +327,8 @@
             headers: {
                 'X-CSRFToken': csrfToken,
                 'Content-Type': 'application/json'
-            }
+            },
+            body: JSON.stringify({ contenido_editado: document.getElementById('receta-container').value })
         })
         .then(response => response.json())
         .then(data => {
@@ -279,6 +359,65 @@
             btnFirmar.disabled = false;
             btnFirmar.innerHTML = 'Firmar Electrónicamente';
         });
+    }
+
+    function appendDoctorChatMessage(sender, text, align) {
+        const chatBox = document.getElementById('doctor-chat-messages');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `mb-2 p-2 rounded text-sm ${align === 'right' ? 'bg-primary text-white ms-auto' : 'bg-dark text-light'}`;
+        msgDiv.style.width = 'fit-content';
+        msgDiv.style.maxWidth = '80%';
+        msgDiv.innerHTML = `<strong>${sender}:</strong> <br>${text}`;
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function enviarMensajeChat() {
+        if (!currentTriajeId) return;
+        const input = document.getElementById('doctor-chat-input');
+        const text = input.value.trim();
+        if (!text) return;
+        
+        appendDoctorChatMessage('Yo', text, 'right');
+        input.value = '';
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        fetch(`/api/triaje/${currentTriajeId}/chat/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message: text })
+        }).catch(err => console.error(err));
+    }
+    
+    document.getElementById('doctor-chat-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') enviarMensajeChat();
+    });
+
+    function solicitarAmbulancia() {
+        if (!currentTriajeId) return;
+        if (!confirm('¿Está seguro que desea solicitar una ambulancia de urgencia para este paciente?')) return;
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        fetch(`/api/triaje/${currentTriajeId}/ambulancia/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                alert('Ambulancia solicitada correctamente.');
+                appendDoctorChatMessage('SISTEMA', '🚨 Ambulancia Solicitada', 'right');
+            } else {
+                alert('Error al solicitar ambulancia: ' + data.message);
+            }
+        })
+        .catch(err => console.error(err));
     }
 </script>
 {% endblock %}

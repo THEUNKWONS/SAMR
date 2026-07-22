@@ -3,6 +3,12 @@ from django.contrib.auth.models import AbstractUser
 from core.fields import EncryptedTextField, EncryptedJSONField
 # Usaremos encrypt() directamente en los modelos.
 
+class Especialidad(models.Model):
+    nombre = models.CharField(max_length=100, unique=True)
+    
+    def __str__(self):
+        return self.nombre
+
 class Usuario(AbstractUser):
     TIPO_USUARIO_CHOICES = [
         ('PACIENTE', 'Paciente'),
@@ -45,13 +51,19 @@ class Familiar(models.Model):
 
 class MedicoEspecialista(models.Model):
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name='perfil_especialista')
-    especialidad = models.CharField(max_length=100)
+    especialidad = models.ForeignKey(Especialidad, on_delete=models.SET_NULL, null=True, blank=True)
     registro_profesional = models.CharField(max_length=50)
     firmaElectronica = models.TextField(blank=True, null=True)
+    # SAMR-15: Campos para matching inteligente
+    disponible = models.BooleanField(default=True)
+    carga_trabajo = models.IntegerField(default=0, help_text="Cantidad de pacientes activos asignados")
 
 class MedicoAsistente(models.Model):
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name='perfil_asistente')
     turno = models.CharField(max_length=50)
+    # SAMR-15: Campos para matching inteligente
+    disponible = models.BooleanField(default=True)
+    carga_trabajo = models.IntegerField(default=0, help_text="Cantidad de pacientes activos asignados")
 
 class EntidadCertificadora(models.Model):
     llavePublica = models.TextField()
@@ -96,11 +108,15 @@ class TriageLog(models.Model):
         ('ATENDIDO', 'Atendido'),
     ]
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE, related_name='triajes')
+    medico_asignado = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='triajes_atendidos')
     sintomas_reportados = models.TextField()
     nivel_alerta = models.CharField(max_length=20)
+    especialidad_requerida = models.ForeignKey(Especialidad, on_delete=models.SET_NULL, null=True, blank=True)
     respuesta_ia = models.TextField()
     resumen_medico = models.TextField()
     estado_asignacion = models.CharField(max_length=20, choices=ESTADOS_ASIGNACION, default='PENDIENTE')
+    # SAMR-15: Médico asignado por el matching inteligente
+    medico_asignado = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='triajes_asignados')
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -111,7 +127,63 @@ class Receta(models.Model):
     # Cifrado AES-256 para proteger el diagnóstico y medicamentos
     contenido = EncryptedTextField(blank=True, null=True)
     firmada = models.BooleanField(default=False)
+    
+    # SAMR-17: Campos para firma electrónica y validación
+    firma_digital = models.TextField(blank=True, null=True, help_text="Firma criptográfica del médico")
+    hash_documento = models.CharField(max_length=64, blank=True, null=True, help_text="SHA-256 del contenido original")
+    
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Receta para {self.triaje.paciente.usuario.first_name} - Firmada: {self.firmada}"
+
+
+# --- SAMR-13: Modelos para Triaje RAG ---
+
+class MedicalProtocol(models.Model):
+    """Protocolo medico almacenado para consulta RAG durante el triaje automatizado."""
+    CATEGORIAS = [
+        ('Cardiovascular', 'Cardiovascular'),
+        ('Respiratorio', 'Respiratorio'),
+        ('Neurologico', 'Neurologico'),
+        ('Alergias', 'Alergias'),
+        ('Gastrointestinal', 'Gastrointestinal'),
+        ('Traumatologia', 'Traumatologia'),
+        ('Infeccioso', 'Infeccioso'),
+        ('Salud Mental', 'Salud Mental'),
+        ('Pediatrico', 'Pediatrico'),
+        ('General', 'General'),
+    ]
+    NIVELES = [
+        ('critico', 'Critico'),
+        ('medio', 'Medio'),
+        ('bajo', 'Bajo'),
+    ]
+    protocol_id = models.CharField(max_length=20, unique=True)
+    categoria = models.CharField(max_length=50, choices=CATEGORIAS)
+    titulo = models.CharField(max_length=200)
+    contenido = models.TextField(help_text="Guia clinica completa del protocolo")
+    nivel_sugerido = models.CharField(max_length=10, choices=NIVELES)
+    palabras_clave = models.TextField(help_text="Palabras clave separadas por coma")
+    activo = models.BooleanField(default=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"[{self.protocol_id}] {self.titulo} ({self.categoria})"
+
+    class Meta:
+        ordering = ['categoria', 'protocol_id']
+
+
+class RAGQueryLog(models.Model):
+    """Registro de consultas RAG realizadas durante el triaje para trazabilidad."""
+    triaje = models.ForeignKey(TriageLog, on_delete=models.CASCADE, related_name='rag_queries', null=True, blank=True)
+    sintomas_query = models.TextField(help_text="Sintomas enviados al motor RAG")
+    protocolos_recuperados = models.TextField(help_text="IDs de protocolos recuperados")
+    nivel_sugerido_rag = models.CharField(max_length=10)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"RAG Query [{self.nivel_sugerido_rag}] - {self.timestamp}"
+
