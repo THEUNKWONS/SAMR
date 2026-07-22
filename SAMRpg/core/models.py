@@ -48,10 +48,16 @@ class MedicoEspecialista(models.Model):
     especialidad = models.CharField(max_length=100)
     registro_profesional = models.CharField(max_length=50)
     firmaElectronica = models.TextField(blank=True, null=True)
+    # SAMR-15: Campos para matching inteligente
+    disponible = models.BooleanField(default=True)
+    carga_trabajo = models.IntegerField(default=0, help_text="Cantidad de pacientes activos asignados")
 
 class MedicoAsistente(models.Model):
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name='perfil_asistente')
     turno = models.CharField(max_length=50)
+    # SAMR-15: Campos para matching inteligente
+    disponible = models.BooleanField(default=True)
+    carga_trabajo = models.IntegerField(default=0, help_text="Cantidad de pacientes activos asignados")
 
 class EntidadCertificadora(models.Model):
     llavePublica = models.TextField()
@@ -59,6 +65,15 @@ class EntidadCertificadora(models.Model):
 
 class Telemetria(models.Model):
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
+    # SAMR-45-US-4.4: este modelo representa la telemetría IoT que alimenta al motor
+    # ML predictivo. Aquí se almacena la carga de datos en reposo, el umbral de
+    # anomalía asociado y el estado de procesamiento del análisis.
+    #
+    # Como arquitecta de software, defino esta entidad como el punto de frontera
+    # entre la ingestión de sensores, el scoring de umbrales y la alerta temprana
+    # al equipo médico. La lógica de ML debe evaluar estos datos de manera
+    # asíncrona y publicar eventos críticos a través del canal de notificaciones
+    # en tiempo real, manteniendo separación clara entre datos, cálculo y notificación.
     # Cifrado AES-256 Real para telemetría en reposo
     datosTelemetria = EncryptedJSONField(blank=True, null=True)
     umbralAnomalia = models.CharField(max_length=50)
@@ -80,6 +95,7 @@ class AuditLog(models.Model):
     def __str__(self):
         return f"AUDIT [{self.timestamp}] {self.action} on {self.model_name}"
 
+# aqui se creo la base de datos para guardar lo que reporta el paciente en el bot de la historia US-1.4
 class TriageLog(models.Model):
     ESTADOS_ASIGNACION = [
         ('PENDIENTE', 'Pendiente'),
@@ -91,6 +107,8 @@ class TriageLog(models.Model):
     respuesta_ia = models.TextField()
     resumen_medico = models.TextField()
     estado_asignacion = models.CharField(max_length=20, choices=ESTADOS_ASIGNACION, default='PENDIENTE')
+    # SAMR-15: Médico asignado por el matching inteligente
+    medico_asignado = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='triajes_asignados')
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -101,7 +119,124 @@ class Receta(models.Model):
     # Cifrado AES-256 para proteger el diagnóstico y medicamentos
     contenido = EncryptedTextField(blank=True, null=True)
     firmada = models.BooleanField(default=False)
+    
+    # SAMR-17: Campos para firma electrónica y validación
+    firma_digital = models.TextField(blank=True, null=True, help_text="Firma criptográfica del médico")
+    hash_documento = models.CharField(max_length=64, blank=True, null=True, help_text="SHA-256 del contenido original")
+    
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Receta para {self.triaje.paciente.usuario.first_name} - Firmada: {self.firmada}"
+
+
+# --- SAMR-13: Modelos para Triaje RAG ---
+
+class MedicalProtocol(models.Model):
+    """Protocolo medico almacenado para consulta RAG durante el triaje automatizado."""
+    CATEGORIAS = [
+        ('Cardiovascular', 'Cardiovascular'),
+        ('Respiratorio', 'Respiratorio'),
+        ('Neurologico', 'Neurologico'),
+        ('Alergias', 'Alergias'),
+        ('Gastrointestinal', 'Gastrointestinal'),
+        ('Traumatologia', 'Traumatologia'),
+        ('Infeccioso', 'Infeccioso'),
+        ('Salud Mental', 'Salud Mental'),
+        ('Pediatrico', 'Pediatrico'),
+        ('General', 'General'),
+    ]
+    NIVELES = [
+        ('critico', 'Critico'),
+        ('medio', 'Medio'),
+        ('bajo', 'Bajo'),
+    ]
+    protocol_id = models.CharField(max_length=20, unique=True)
+    categoria = models.CharField(max_length=50, choices=CATEGORIAS)
+    titulo = models.CharField(max_length=200)
+    contenido = models.TextField(help_text="Guia clinica completa del protocolo")
+    nivel_sugerido = models.CharField(max_length=10, choices=NIVELES)
+    palabras_clave = models.TextField(help_text="Palabras clave separadas por coma")
+    activo = models.BooleanField(default=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"[{self.protocol_id}] {self.titulo} ({self.categoria})"
+
+    class Meta:
+        ordering = ['categoria', 'protocol_id']
+
+
+class RAGQueryLog(models.Model):
+    """Registro de consultas RAG realizadas durante el triaje para trazabilidad."""
+    triaje = models.ForeignKey(TriageLog, on_delete=models.CASCADE, related_name='rag_queries', null=True, blank=True)
+    sintomas_query = models.TextField(help_text="Sintomas enviados al motor RAG")
+    protocolos_recuperados = models.TextField(help_text="IDs de protocolos recuperados")
+    nivel_sugerido_rag = models.CharField(max_length=10)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"RAG Query [{self.nivel_sugerido_rag}] - {self.timestamp}"
+
+
+# SAMR-US-2.2: Modelo para almacenar el resumen bibliográfico RAG generado para el especialista.
+# Como especialista, quiero recibir un resumen generado por RAG sustentado en libros médicos
+# para no enfrentar alucinaciones de IA. Este modelo persiste el resumen técnico y las
+# referencias bibliográficas (serializadas en JSON) usadas para generarlo, garantizando
+# trazabilidad y auditabilidad de la fuente de conocimiento empleada.
+class ResumenEspecialistaRAG(models.Model):
+    triaje = models.OneToOneField(
+        TriageLog,
+        on_delete=models.CASCADE,
+        related_name='resumen_especialista'
+    )
+    resumen_generado = models.TextField(
+        help_text="Resumen clínico técnico generado por el LLM sustentado en bibliografía"
+    )
+    referencias_bibliograficas = models.TextField(
+        help_text="JSON con las fuentes bibliográficas (libros médicos) recuperadas por el RAG"
+    )
+    ids_referencias_usadas = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="IDs de las referencias bibliográficas usadas (ej: BIB-001,BIB-005)"
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Resumen Especialista RAG — Triaje #{self.triaje.id} [{self.timestamp.strftime('%Y-%m-%d %H:%M')}]"
+
+    class Meta:
+        verbose_name = "Resumen Especialista RAG"
+        verbose_name_plural = "Resúmenes Especialista RAG"
+
+
+# SAMR-US-3.7: Modelo para almacenar el registro inmutable de las interacciones con bots.
+# Como regulador, quiero que el sistema genere un registro inmutable de la consulta
+# y las interacciones con bots. Este modelo persiste el mensaje del usuario, la respuesta
+# del bot y un hash criptográfico SHA-256 para garantizar el cumplimiento WORM.
+class RegistroInteraccionBot(models.Model):
+    triaje = models.ForeignKey(
+        TriageLog,
+        on_delete=models.CASCADE,
+        related_name='interacciones_bot',
+        null=True,
+        blank=True
+    )
+    mensaje_paciente = models.TextField(help_text="Mensaje exacto enviado por el paciente")
+    respuesta_bot = models.TextField(help_text="Respuesta generada por el asistente de IA")
+    hash_inmutable = models.CharField(
+        max_length=64,
+        help_text="SHA-256 hash de (mensaje|respuesta|timestamp) para cumplimiento WORM"
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Interacción Bot [{self.timestamp}] - Hash: {self.hash_inmutable[:8]}..."
+
+    class Meta:
+        verbose_name = "Registro Inmutable de Bot"
+        verbose_name_plural = "Registros Inmutables de Bot"
+        ordering = ['-timestamp']
+

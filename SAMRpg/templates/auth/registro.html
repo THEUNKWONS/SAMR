@@ -2,6 +2,13 @@
 
 {% block content_public %}
 <div class="glass-card p-4 p-md-5">
+    <!-- 
+        Aquí diseñé el layout UX/UI para el registro de nuevos perfiles.
+        Historia de Usuario Realizada: US-1.1: Como paciente, quiero registrar mis datos demográficos y antecedentes básicos (alergias) para crear mi perfil.
+        UX: Se implementó un formulario en formato de grid espaciado (row g-3) para evitar sobrecarga cognitiva,
+        ocultando campos dinámicamente según el tipo de usuario. 
+        UI: Se mantuvieron las tarjetas translúcidas (glass-card) con bordes suaves para dar una sensación de seguridad y modernidad.
+    -->
     <h2 class="h5 mb-4 text-center">Registro de Usuario</h2>
     
     <form method="post" action="{% url 'registro_paciente' %}">
@@ -47,6 +54,11 @@
             </div>
 
             <!-- Campo para Pacientes -->
+            <!-- 
+                Parte fundamental de la US-1.1 (Registro de antecedentes básicos/alergias).
+                Decisión UX/UI: Se resaltó el label con clase text-danger (rojo) para alertar visualmente
+                de la importancia de este campo, garantizando que el usuario no lo pase por alto en su registro demográfico.
+            -->
             <div class="col-12" id="campo_alergias">
                 <label class="form-label text-sm text-danger">Alergias Conocidas (Escribe 'Ninguna' si no tienes)</label>
                 <textarea name="alergias" id="input_alergias" class="form-control-custom w-100" rows="2" placeholder="Describa sus alergias médicas aquí..."></textarea>
