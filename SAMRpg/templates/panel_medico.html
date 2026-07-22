@@ -26,11 +26,9 @@
                 {% else %}
                 <div class="alert border-0" style="background: rgba(16, 185, 129, 0.1); color: #6ee7b7;">
                     <strong>Baja Prioridad</strong>
-                    <p class="mb-1 text-sm text-light opacity-75">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico|truncatewords:15 }}</p>
-                    <button class="btn btn-sm btn-outline-success mt-2" data-bs-toggle="modal" data-bs-target="#detalleModal{{ triaje.id }}">Ver Detalle</button>
+                    <p class="mb-1 text-sm text-light opacity-75">Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}. {{ triaje.resumen_medico }}</p>
+                    <button class="btn btn-sm btn-outline-success mt-2">Ver Detalle</button>
                 </div>
-                
-
                 {% endif %}
             {% empty %}
                 <p class="text-muted text-sm">No hay ofertas de emergencia pendientes.</p>
@@ -39,12 +37,6 @@
     </div>
 
     <div class="col-lg-8">
-        <!-- 
-            Aquí implementé el diseño UX/UI para la teleconsulta síncrona.
-            Historia de Usuario Realizada: SAMR-36-US-3.2-Como-médico-y-paciente-queremos-tener-una-teleconsulta-síncrona-con-botones-fáciles-para-manejar-audio-y-video.
-            Se aplicó un diseño de "glass-card" oscuro para reducir la fatiga visual del médico (UI), 
-            y se estructuró la jerarquía de la pantalla para que el streaming de video y las acciones principales (como recetar) sean inmediatas y muy accesibles (UX).
-        -->
         <div class="glass-card p-4" id="teleconsulta-panel" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h5 class="mb-0">Teleconsulta Síncrona</h5>
@@ -57,12 +49,6 @@
 
             <div class="row">
                 <div class="col-md-6">
-                    <!--
-                        Aquí implementé la parte visual para la US-3.4 (Explicabilidad clara sobre sugerencias de diagnóstico).
-                        Decisión UX/UI: Se colocó el "Resumen de IA (RAG)" en la mitad izquierda del panel de acciones,
-                        utilizando un recuadro semitransparente oscuro para separar visualmente el contexto médico de las acciones ejecutables.
-                        Esto permite al especialista leer fácilmente la justificación de la IA sin perder de vista los controles principales (UX).
-                    -->
                     <h6>Resumen de IA (RAG)</h6>
                     <p class="text-sm text-light opacity-75 p-2 rounded" style="background: rgba(0,0,0,0.2);" id="rag-summary-text">
                         Esperando conexión con paciente...
@@ -114,55 +100,6 @@
     </div>
     </div>
 </div>
-
-<!-- Modal RAG Protocol -->
-<div class="modal fade" id="protocoloModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content shadow-lg" style="background: #1e293b; border: 1px solid rgba(255,255,255,0.15); color: #f8fafc;">
-      <div class="modal-header border-bottom" style="border-color: rgba(255,255,255,0.1) !important;">
-        <h5 class="modal-title fw-bold"><i class="bi bi-journal-medical me-2"></i>Protocolo Clínico Base (RAG)</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body" style="white-space: pre-wrap; font-family: monospace; max-height: 60vh; overflow-y: auto;" id="protocolo-modal-body">
-        Cargando...
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modals must be outside of transformed/filtered containers -->
-{% for triaje in triajes_pendientes %}
-    {% if triaje.nivel_alerta == 'bajo' %}
-    <div class="modal fade" id="detalleModal{{ triaje.id }}" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow-lg" style="background: #1e293b; border: 1px solid rgba(255,255,255,0.15); color: #f8fafc; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;">
-          <div class="modal-header border-bottom" style="border-color: rgba(255,255,255,0.1) !important;">
-            <h5 class="modal-title fw-bold">Detalles del Paciente: {{ triaje.paciente.usuario.get_full_name|default:triaje.paciente.usuario.username }}</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <h6 class="text-success">Síntomas Reportados:</h6>
-            <p class="text-sm opacity-75">{{ triaje.sintomas_reportados }}</p>
-            
-            <h6 class="text-success mt-3">Resumen Médico (IA):</h6>
-            <p class="text-sm opacity-75">{{ triaje.resumen_medico }}</p>
-            
-            <h6 class="text-success mt-3">Respuesta enviada al paciente:</h6>
-            <p class="text-sm opacity-75">{{ triaje.respuesta_ia }}</p>
-            
-            <div class="alert alert-info mt-3 p-2 text-sm border-0" style="background: rgba(14, 165, 233, 0.1); color: #7dd3fc;">
-              <i class="bi bi-info-circle"></i> Este caso fue catalogado como baja prioridad, usualmente no requiere teleconsulta de urgencia, pero puede conectarse si lo considera necesario.
-            </div>
-          </div>
-          <div class="modal-footer border-top" style="border-color: var(--glass-border) !important;">
-            <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cerrar</button>
-            <button type="button" class="btn btn-success btn-sm" data-bs-dismiss="modal" onclick="aceptarTriaje('{{ triaje.id }}')">Conectar con Paciente</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-{% endfor %}
 
 <script>
     const doctorSpecialty = "{{ especialidad_medico_nombre|escapejs }}";
@@ -257,10 +194,7 @@
                 document.getElementById('video-placeholder-text').innerHTML = `Conectado con: <strong>${data.paciente_nombre}</strong><br><small class="text-success mt-2 d-block"><i class="bi bi-camera-video-fill me-1"></i> Transmitiendo en vivo</small>`;
                 document.getElementById('video-placeholder-text').classList.remove('opacity-50');
                 
-                // TODO (SAMR-37): Implementar detector de WebRTC (Network Quality API) para apagar el video automáticamente en caso de mala conexión (fallback a solo audio).
-                
-                document.getElementById('protocolo-modal-body').textContent = data.protocolo_rag || "No hay protocolos RAG disponibles para este triaje.";
-                document.getElementById('rag-summary-text').innerHTML = `${data.resumen_medico} <br><a href="#" class="text-info text-decoration-none mt-2 d-inline-block" data-bs-toggle="modal" data-bs-target="#protocoloModal">Ver protocolo base</a>`;
+                document.getElementById('rag-summary-text').innerHTML = `${data.resumen_medico} <br><a href="#" class="text-info text-decoration-none mt-2 d-inline-block">Ver protocolo base</a>`;
                 
                 // Mostrar un toast success
                 const toastContainer = document.querySelector('.toast-container');

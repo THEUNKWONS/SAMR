@@ -1,72 +1,76 @@
 {% extends 'base.html' %}
-{% load static %}
 
 {% block content %}
-<div class="glass-card p-4 h-100 d-flex flex-column" style="max-height: 80vh;">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="h4 mb-0"><i class="bi bi-robot me-2"></i>SAMR-IA Asistente Virtual</h2>
-    </div>
-
-    <!-- Contenedor del Chat (reemplaza a chatbot-window) -->
-    <div id="chatbot-window" class="flex-grow-1 d-flex flex-column active" style="position: relative; width: 100%; height: 100%; right: auto; bottom: auto; z-index: 1; border-radius: 10px; display: flex !important; transform: none; opacity: 1; pointer-events: auto;">
-        
-        <div id="chat-messages" class="chat-messages flex-grow-1 mb-3" style="border-radius: 10px; background: rgba(0, 0, 0, 0.2); max-height: 60vh;">
-            <div class="message bot">
-                Hola, soy el asistente virtual de SAMR. ¿En qué te puedo ayudar hoy? Por favor describe tus síntomas o indica si es una emergencia.
+<div class="row justify-content-center h-100">
+    <div class="col-lg-10 col-xl-8 d-flex flex-column" style="height: calc(100vh - 150px);">
+        <div class="glass-card d-flex flex-column h-100 overflow-hidden">
+            <!-- Header -->
+            <div class="p-4 border-bottom" style="background: rgba(255, 255, 255, 0.03); border-color: var(--glass-border) !important;">
+                <h2 class="h4 m-0 d-flex align-items-center text-gradient">
+                    <i class="bi bi-robot text-accent me-3"></i> Asistente Virtual SAMR-IA
+                </h2>
+                <p class="text-secondary small mb-0 mt-2">Usa el micrófono o el teclado para consultar tus síntomas.</p>
             </div>
-        </div>
-        
-        <div class="chat-input" style="display: flex; gap: 10px; background: transparent; padding: 0;">
-            <input type="text" id="chat-input" placeholder="Escribe tu mensaje..." autocomplete="off" class="form-control-custom" style="flex: 1;">
             
-            <button id="mic-btn" title="Hablar por voz" class="btn-premium p-3" style="width: auto; flex-direction: row; border-radius: 10px; margin-top: 0;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-mic-fill" viewBox="0 0 16 16">
-                    <path d="M5 3a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0V3z"/>
-                    <path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/>
-                </svg>
-            </button>
+            <!-- Messages Area -->
+            <div class="chat-messages flex-grow-1 p-4" id="chat-messages" style="overflow-y: auto; display: flex; flex-direction: column; gap: 15px;">
+                <div class="message bot">
+                    Hola, soy SAMR-IA. Estoy listo para ayudarte con tu triaje o consultas médicas. ¿Cuáles son tus síntomas hoy?
+                </div>
+            </div>
             
-            <button id="send-msg" class="btn-premium p-3" style="width: auto; flex-direction: row; border-radius: 10px; margin-top: 0;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-send-fill" viewBox="0 0 16 16">
-                  <path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-15Zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471-.47 1.178Z"/>
-                </svg>
-            </button>
+            <!-- Input Area -->
+            <div class="p-4 border-top" style="background: rgba(0, 0, 0, 0.2); border-color: var(--glass-border) !important;">
+                <div class="d-flex gap-3 align-items-center w-100">
+                    <button type="button" id="mic-btn" class="btn btn-secondary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 55px; height: 55px; transition: all 0.3s;" title="Hablar por micrófono">
+                        <i class="bi bi-mic-fill fs-4"></i>
+                    </button>
+                    <input type="text" id="chat-input" class="form-control form-control-lg form-control-custom flex-grow-1 rounded-pill px-4" placeholder="Escribe tu mensaje aquí..." style="height: 55px; font-size: 1.1rem; background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--glass-border);">
+                    <button type="button" id="send-msg" class="btn btn-premium rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 55px; height: 55px;">
+                        <i class="bi bi-send-fill fs-4"></i>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <style>
-/* Ajustes locales para sobreescribir el estilo de la ventana flotante */
-#chatbot-window {
-    box-shadow: none !important;
-    background: transparent !important;
-    border: none !important;
-}
-.chat-messages {
-    padding: 15px;
-    overflow-y: auto;
-}
+/* Ensure messages look correct in the full width panel */
 .message {
-    padding: 12px 16px;
-    border-radius: 12px;
     max-width: 80%;
-    margin-bottom: 12px;
-    line-height: 1.4;
-    font-size: 0.95rem;
+    padding: 14px 20px;
+    border-radius: 18px;
+    font-size: 1.05rem;
+    line-height: 1.5;
+    animation: fadeIn 0.3s ease forwards;
+    width: fit-content;
 }
 .message.bot {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     align-self: flex-start;
+    border-bottom-left-radius: 4px;
 }
 .message.user {
     background: var(--accent-color);
-    color: white;
     align-self: flex-end;
-    margin-left: auto;
+    border-bottom-right-radius: 4px;
+    box-shadow: 0 4px 10px var(--accent-glow);
+    color: white;
 }
-.loading-msg {
-    opacity: 0.7;
-    font-style: italic;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+/* Style mic button when recording */
+#mic-btn[style*="color: red"] {
+    background-color: rgba(239, 68, 68, 0.2) !important;
+    border: 1px solid red;
+    animation: pulse 1s infinite alternate;
+}
+@keyframes pulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.05); }
 }
 </style>
 {% endblock %}

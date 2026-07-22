@@ -3,145 +3,108 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-10">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h2 class="h3 mb-1 fw-bold">Historial Clínico</h2>
-                <p class="text-muted mb-0"><i class="bi bi-shield-check me-2 text-success"></i>Registro Inmutable Sincronizado con MSP</p>
+        <div class="glass-card p-4">
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4" style="border-color: var(--glass-border) !important;">
+                <h2 class="h4 mb-0">Historial Clínico Inmutable</h2>
+                <span class="badge bg-info text-dark">Sincronizado con MSP</span>
             </div>
-            <span class="badge bg-success bg-opacity-25 text-success border border-success p-2 px-3 rounded-pill">
-                <i class="bi bi-cloud-check-fill me-1"></i> Sincronizado
-            </span>
-        </div>
 
-        <div class="timeline-container mt-4">
-            {% for triaje in historial %}
-            <div class="card glass-card mb-4 border-0 shadow-sm timeline-card position-relative overflow-hidden">
-                <!-- Color bar indicator -->
-                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; 
-                    {% if triaje.nivel_alerta == 'critico' %} background: #ef4444; 
-                    {% elif triaje.nivel_alerta == 'medio' %} background: #f59e0b; 
-                    {% else %} background: #10b981; {% endif %}">
-                </div>
-                
-                <div class="card-body p-4 ms-2">
-                    <div class="row align-items-center">
-                        <div class="col-md-3 border-end border-secondary border-opacity-25 text-center">
-                            <div class="text-muted small fw-semibold text-uppercase mb-1">{{ triaje.timestamp|date:"l" }}</div>
-                            <h4 class="fw-bold mb-0 text-white">{{ triaje.timestamp|date:"d M, Y" }}</h4>
-                            <div class="text-light opacity-75 small mt-1"><i class="bi bi-clock me-1"></i>{{ triaje.timestamp|date:"H:i" }}</div>
-                            <div class="mt-3">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover table-borderless" style="--bs-table-bg: transparent;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--glass-border);">
+                            <th>Fecha/Hora</th>
+                            <th>Evento</th>
+                            <th>Diagnóstico / Resolución</th>
+                            <th>Firma Médica</th>
+                            <th>Auditoría</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for triaje in historial %}
+                        <tr>
+                            <td class="text-light opacity-75">{{ triaje.timestamp|date:"d/m/Y H:i" }}</td>
+                            <td>
                                 {% if triaje.nivel_alerta == 'critico' %}
-                                <span class="badge bg-danger bg-opacity-25 text-danger border border-danger rounded-pill px-3 py-2"><i class="bi bi-exclamation-triangle-fill me-1"></i> Crítico</span>
+                                <span class="badge bg-danger">Triaje Crítico</span>
                                 {% elif triaje.nivel_alerta == 'medio' %}
-                                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning rounded-pill px-3 py-2"><i class="bi bi-exclamation-circle-fill me-1"></i> Medio</span>
+                                <span class="badge bg-warning text-dark">Triaje Medio</span>
                                 {% else %}
-                                <span class="badge bg-success bg-opacity-25 text-success border border-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill me-1"></i> Bajo</span>
+                                <span class="badge bg-success">Triaje Bajo</span>
                                 {% endif %}
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6 px-4 py-3 py-md-0">
-                            <h6 class="text-success mb-2 text-uppercase fw-bold" style="font-size: 0.75rem; letter-spacing: 1px;">Diagnóstico / Resolución</h6>
-                            {% if triaje.receta and triaje.receta.firmada %}
-                                <p class="text-light opacity-75 mb-0" style="font-size: 0.95rem;">
-                                    {{ triaje.resumen_medico|truncatechars:100 }}
-                                </p>
-                            {% else %}
-                                <p class="text-light opacity-75 mb-0" style="font-size: 0.95rem;">
-                                    {{ triaje.resumen_medico }}
-                                </p>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="col-md-3 text-md-end border-start border-secondary border-opacity-25">
-                            {% if triaje.receta and triaje.receta.firmada %}
-                                <div class="mb-3">
-                                    <span class="d-inline-flex align-items-center text-success small fw-semibold">
-                                        <i class="bi bi-patch-check-fill me-2 fs-5"></i> Firmada Electrónicamente
-                                    </span>
-                                </div>
-                                <button class="btn btn-outline-info rounded-pill px-4" onclick="verReceta('{{ triaje.receta.contenido|escapejs }}', '{{ triaje.timestamp|date:"d/m/Y" }}')">
-                                    <i class="bi bi-file-earmark-medical me-2"></i> Ver Receta
-                                </button>
-                            {% else %}
-                                <div class="text-center text-md-end text-muted">
-                                    <i class="bi bi-hourglass-split fs-4 mb-2 d-block"></i>
-                                    <span class="small">Sin Receta Final</span>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
+                            </td>
+                            <td>
+                                {% if triaje.receta and triaje.receta.firmada %}
+                                    <button class="btn btn-sm btn-outline-info" onclick="verReceta('{{ triaje.receta.contenido|escapejs }}', '{{ triaje.timestamp|date:"d/m/Y" }}')">
+                                        <i class="bi bi-file-earmark-medical"></i> Ver Receta
+                                    </button>
+                                {% else %}
+                                    <span class="text-light opacity-75 text-sm">{{ triaje.resumen_medico|truncatechars:40 }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if triaje.receta and triaje.receta.firmada %}
+                                    <span class="text-success"><i class="bi bi-check-circle-fill"></i> Firmada Electrónicamente</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if triaje.receta and triaje.receta.firmada %}
+                                    <span class="badge bg-success">Validado</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Pendiente</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">No hay registros en el historial.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
-            {% empty %}
-            <div class="text-center py-5 glass-card rounded-4 border-0">
-                <i class="bi bi-folder2-open text-muted" style="font-size: 4rem;"></i>
-                <h4 class="mt-3 text-light">No hay registros clínicos</h4>
-                <p class="text-muted">Su historial clínico está vacío por el momento.</p>
-            </div>
-            {% endfor %}
-        </div>
-        
-        <div class="mt-5 p-4 glass-card rounded-4 border-0 d-flex align-items-center justify-content-between" style="background: linear-gradient(90deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%); border-left: 4px solid var(--accent-color) !important;">
-            <div>
-                <h6 class="mb-1 text-white">Monitoreo Predictivo Activo</h6>
-                <p class="text-muted small mb-0">Basado en sus últimos análisis clínicos</p>
-            </div>
-            <div class="w-50">
-                <div class="d-flex justify-content-between mb-1">
-                    <span class="small text-success fw-bold">Estabilidad General</span>
-                    <span class="small text-white fw-bold">85%</span>
-                </div>
-                <div class="progress" style="height: 8px; background: rgba(0,0,0,0.3);">
-                    <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" role="progressbar" style="width: 85%;"></div>
+            
+            <div class="mt-4 pt-3 border-top" style="border-color: var(--glass-border) !important;">
+                <h6 class="mb-3">Monitoreo Predictivo Activo</h6>
+                <div class="progress" style="height: 10px; background: rgba(0,0,0,0.3);">
+                    <div class="progress-bar bg-success" role="progressbar" style="width: 85%;" aria-valuenow="85" aria-valuemin="0" aria-valuemax="100">85% Estabilidad</div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <!-- Modal para ver receta -->
 <div class="modal fade" id="recetaModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content border-0 shadow-lg" style="background: #0f172a; border-radius: 1rem;">
-      <div class="modal-header border-bottom border-secondary border-opacity-50 p-4">
-        <h5 class="modal-title fw-bold text-white"><i class="bi bi-file-earmark-medical text-info me-2"></i>Receta Médica y Plan de Tratamiento</h5>
+    <div class="modal-content glass-card border-0" style="background: var(--dark-bg);">
+      <div class="modal-header border-bottom border-secondary">
+        <h5 class="modal-title"><i class="bi bi-file-earmark-medical me-2"></i>Receta Médica y Plan de Tratamiento</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body p-4">
-        <div class="d-flex justify-content-between bg-dark bg-opacity-50 p-3 rounded-3 mb-4 border border-secondary border-opacity-25">
-            <span class="text-light"><strong>Paciente:</strong> {{ request.user.first_name }} {{ request.user.last_name }}</span>
-            <span id="modal-fecha-receta" class="text-info fw-semibold"></span>
+      <div class="modal-body">
+        <div class="d-flex justify-content-between text-muted mb-3">
+            <span><strong>Paciente:</strong> {{ request.user.first_name }} {{ request.user.last_name }}</span>
+            <span id="modal-fecha-receta"></span>
         </div>
-        <div id="modal-contenido-receta" class="p-4 rounded-3 text-light" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: 0.95rem; line-height: 1.6; min-height: 250px;">
+        <div id="modal-contenido-receta" class="p-3 rounded" style="background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); white-space: pre-wrap; font-family: monospace; font-size: 14px; min-height: 200px;">
         </div>
       </div>
-      <div class="modal-footer border-top border-secondary border-opacity-50 p-3">
-        <button type="button" class="btn btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
-        <button type="button" class="btn btn-info text-dark fw-bold rounded-pill px-4"><i class="bi bi-download me-2"></i> Descargar PDF Seguro</button>
+      <div class="modal-footer border-top border-secondary">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-success"><i class="bi bi-download me-1"></i> Descargar PDF</button>
       </div>
     </div>
   </div>
 </div>
 
-<style>
-    .timeline-card {
-        transition: all 0.3s ease;
-        background: rgba(30, 41, 59, 0.7) !important;
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.05) !important;
-    }
-    .timeline-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
-        border-color: rgba(255,255,255,0.1) !important;
-    }
-</style>
-
 <script>
     function verReceta(contenido, fecha) {
         document.getElementById('modal-contenido-receta').textContent = contenido;
-        document.getElementById('modal-fecha-receta').innerHTML = '<i class="bi bi-calendar-event me-1"></i> ' + fecha;
+        document.getElementById('modal-fecha-receta').innerHTML = '<strong>Fecha:</strong> ' + fecha;
         var myModal = new bootstrap.Modal(document.getElementById('recetaModal'));
         myModal.show();
     }

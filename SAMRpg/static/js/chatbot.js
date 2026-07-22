@@ -1,161 +1,65 @@
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
-}
-
 document.addEventListener('DOMContentLoaded', () => {
+    const chatbotBtn = document.getElementById('chatbot-toggle');
+    const sidebarChatbotToggle = document.getElementById('sidebar-chatbot-toggle');
+    const chatbotWindow = document.getElementById('chatbot-window');
+    const closeBtn = document.getElementById('close-chat');
     const sendBtn = document.getElementById('send-msg');
     const chatInput = document.getElementById('chat-input');
     const chatMessages = document.getElementById('chat-messages');
-    const voiceToggleBtn = document.getElementById('btn-toggle-voice');
-    const voiceIcon = document.getElementById('voice-icon');
 
-    if (!chatMessages) return;
-
-    // TTS Config
-    let voiceEnabled = true;
-    let synth = window.speechSynthesis;
-    
-    if (voiceToggleBtn) {
-        voiceToggleBtn.addEventListener('click', () => {
-            voiceEnabled = !voiceEnabled;
-            if (voiceEnabled) {
-                voiceIcon.classList.replace('bi-volume-mute-fill', 'bi-volume-up-fill');
-                voiceToggleBtn.classList.add('btn-outline-light');
-                voiceToggleBtn.classList.remove('btn-secondary');
-            } else {
-                voiceIcon.classList.replace('bi-volume-up-fill', 'bi-volume-mute-fill');
-                voiceToggleBtn.classList.remove('btn-outline-light');
-                voiceToggleBtn.classList.add('btn-secondary');
-                synth.cancel(); // Stop speaking
+    // Toggle window
+    if (chatbotBtn) {
+        chatbotBtn.addEventListener('click', () => {
+            chatbotWindow.classList.toggle('active');
+            if (chatbotWindow.classList.contains('active')) {
+                chatInput.focus();
             }
         });
     }
 
-    function speakText(text) {
-        if (!voiceEnabled || !synth) return;
-        
-        // Clean text from markdown or emojis before speaking
-        let cleanText = text.replace(/[\*\_\[\]\(\)\#\-\>]/g, '').trim();
-        cleanText = cleanText.replace(/[🚨🟢🟡✅]/g, '');
-        
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.lang = 'es-ES';
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        
-        // Find a good Spanish voice
-        const voices = synth.getVoices();
-        const esVoice = voices.find(v => v.lang.startsWith('es-') && v.name.includes('Google')) || voices.find(v => v.lang.startsWith('es-'));
-        if (esVoice) utterance.voice = esVoice;
-        
-        const avatar = document.querySelector('.bot-avatar');
-        
-        utterance.onstart = () => {
-            if (avatar) avatar.classList.add('bot-speaking');
-        };
-        
-        utterance.onend = () => {
-            if (avatar) avatar.classList.remove('bot-speaking');
-        };
-        
-        synth.speak(utterance);
-    }
-
-    // Load initial voices (workaround for Chrome bug)
-    if (synth) synth.onvoiceschanged = () => synth.getVoices();
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const iotBpm = urlParams.get('iot_bpm');
-    const iotSpo2 = urlParams.get('iot_spo2');
-    
-    if (iotBpm && iotSpo2) {
-        chatInput.value = `[ALERTA IoT] Ritmo Cardíaco: ${iotBpm} BPM, SpO2: ${iotSpo2}%. Mis síntomas son: `;
-        chatInput.focus();
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    const offlineQueueKey = 'samr-offline-symptoms-queue';
-
-    const getOfflineQueue = () => {
-        const q = localStorage.getItem(offlineQueueKey);
-        return q ? JSON.parse(q) : [];
-    };
-
-    const setOfflineQueue = (q) => {
-        localStorage.setItem(offlineQueueKey, JSON.stringify(q));
-    };
-
-    const enqueueOfflineMessage = (text) => {
-        const q = getOfflineQueue();
-        q.push({ text: text, timestamp: new Date().toISOString() });
-        setOfflineQueue(q);
-    };
-
-    const flushOfflineQueue = async () => {
-        const q = getOfflineQueue();
-        if (q.length === 0) return;
-
-        let remaining = [];
-        for (const item of q) {
-            try {
-                const response = await fetch('/api/chatbot/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    body: JSON.stringify({ message: item.text + " [ENVIADO OFFLINE]" })
-                });
-                
-                const data = await response.json();
-                if (data.status === 'success') {
-                    appendMessage('bot', `Respuesta a tu síntoma guardado: ${data.reply}`);
-                } else {
-                    remaining.push(item);
-                }
-            } catch (error) {
-                remaining.push(item);
+    if (sidebarChatbotToggle) {
+        sidebarChatbotToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            chatbotWindow.classList.toggle('active');
+            if (chatbotWindow.classList.contains('active')) {
+                chatInput.focus();
             }
-        }
-        setOfflineQueue(remaining);
-    };
+        });
+    }
 
-    window.addEventListener('online', () => {
-        appendMessage('bot', 'Conexión restaurada. Intentando enviar los síntomas guardados...', 'system-msg');
-        flushOfflineQueue();
-    });
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            chatbotWindow.classList.remove('active');
+        });
+    }
 
-    window.addEventListener('offline', () => {
-        appendMessage('bot', 'Estás sin conexión. Los síntomas se guardarán localmente y se enviarán cuando se recupere internet.', 'system-msg');
-    });
-
+    // Send message (Mockup)
     const sendMessage = () => {
         const text = chatInput.value.trim();
         if (text === '') return;
 
-        if (!navigator.onLine) {
-            appendMessage('user', text);
-            enqueueOfflineMessage(text);
-            chatInput.value = '';
-            appendMessage('bot', 'Sin conexión. Tus síntomas se han guardado localmente y se enviarán cuando recuperes internet.', 'system-msg');
-            return;
-        }
-
+        // User message
         appendMessage('user', text);
         chatInput.value = '';
 
-        appendMessage('bot', '...', 'loading-msg'); 
+        // Bot response (API Fetch)
+        appendMessage('bot', '...', 'loading-msg'); // Loading indicator
+
+        // Extract CSRF token from cookies
+        const getCookie = (name) => {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        };
 
         fetch('/api/chatbot/', {
             method: 'POST',
@@ -167,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(response => response.json())
         .then(data => {
+            // Remove loading msg
             const loadingMsg = document.querySelector('.loading-msg');
             if (loadingMsg) loadingMsg.remove();
 
@@ -177,20 +82,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         })
         .catch(error => {
+            console.error('Error:', error);
             const loadingMsg = document.querySelector('.loading-msg');
             if (loadingMsg) loadingMsg.remove();
-            enqueueOfflineMessage(text);
-            appendMessage('bot', 'No se pudo enviar. Tus síntomas se han guardado localmente y se enviarán cuando haya conexión.', 'system-msg');
+            appendMessage('bot', 'Error de red.');
         });
     };
 
-    sendBtn.addEventListener('click', sendMessage);
-    chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    });
+    if (sendBtn) {
+        sendBtn.addEventListener('click', sendMessage);
+    }
+    
+    if (chatInput) {
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    }
 
+    // Web Speech API para Voicebot
     const micBtn = document.getElementById('mic-btn');
     if (micBtn) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -199,14 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
             recognition.lang = 'es-ES';
             recognition.interimResults = false;
             recognition.maxAlternatives = 1;
-            const micIcon = document.getElementById('mic-icon');
-
-            let isRecording = false;
 
             recognition.onstart = function() {
-                isRecording = true;
-                micIcon.classList.replace('text-light', 'text-danger');
-                micBtn.style.animation = 'pulseAvatar 1s infinite';
+                micBtn.style.color = 'red';
                 chatInput.placeholder = "Escuchando...";
             };
 
@@ -218,78 +124,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
             recognition.onspeechend = function() {
                 recognition.stop();
-                isRecording = false;
-                micIcon.classList.replace('text-danger', 'text-light');
-                micBtn.style.animation = 'none';
-                chatInput.placeholder = "Escribe tu mensaje médico aquí...";
+                micBtn.style.color = '';
+                chatInput.placeholder = "Escribe tu mensaje...";
             };
 
             recognition.onerror = function(event) {
-                isRecording = false;
-                micIcon.classList.replace('text-danger', 'text-light');
-                micBtn.style.animation = 'none';
-                chatInput.placeholder = "Escribe tu mensaje médico aquí...";
-                if (event.error !== 'aborted') {
-                    appendMessage('bot', 'No pude escucharte bien. ¿Puedes intentarlo de nuevo?');
-                }
+                console.error("Speech recognition error", event.error);
+                micBtn.style.color = '';
+                chatInput.placeholder = "Escribe tu mensaje...";
+                appendMessage('bot', 'No pude escucharte bien. ¿Puedes intentarlo de nuevo?');
             };
 
             micBtn.addEventListener('click', () => {
-                if (isRecording) {
-                    recognition.stop();
-                } else {
-                    try {
-                        recognition.start();
-                    } catch (e) {
-                        console.error("Error al iniciar el reconocimiento de voz:", e);
-                    }
-                }
+                recognition.start();
             });
         } else {
             micBtn.style.display = 'none';
+            console.log("Speech Recognition not supported in this browser.");
         }
     }
 
     function appendMessage(sender, text, extraClass = null) {
+        if (!chatMessages) return;
         const msgDiv = document.createElement('div');
         msgDiv.classList.add('message', sender);
-        if (extraClass) msgDiv.classList.add(extraClass);
-
-        const isUser = sender === 'user';
-        const bubbleClass = isUser ? 'user-bubble' : 'bot-bubble';
-        const iconClass = isUser ? 'bi-person-fill' : 'bi-robot';
-        const avatarBg = isUser ? 'background: #334155;' : 'background: linear-gradient(135deg, var(--accent-color) 0%, #047857 100%);';
-
-        msgDiv.innerHTML = `
-            <div class="d-flex align-items-start">
-                <div class="avatar-circle text-white shadow-sm flex-shrink-0 d-flex align-items-center justify-content-center ${isUser ? 'ms-3' : 'me-3 mt-1'}" style="width: 38px; height: 38px; border-radius: 50%; ${avatarBg}">
-                    <i class="bi ${iconClass} fs-6"></i>
-                </div>
-                <div class="p-3 shadow-sm message-bubble ${bubbleClass} text-white content-text" style="white-space: pre-wrap;">
-                </div>
-            </div>
-        `;
-        
-        msgDiv.querySelector('.content-text').textContent = text;
+        if (extraClass) {
+            msgDiv.classList.add(extraClass);
+        }
+        msgDiv.style.whiteSpace = 'pre-wrap';
+        msgDiv.textContent = text;
         chatMessages.appendChild(msgDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
-
-        if (sender === 'bot' && !extraClass) {
-            speakText(text);
-        }
     }
 
+    // Configurar WebSocket del Paciente para notificaciones en tiempo real
     const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
     const wsUrl = protocol + window.location.host + '/ws/paciente/';
     const socket = new WebSocket(wsUrl);
+
+    socket.onopen = function(e) {
+        console.log("[WebSocket] Conectado al canal del paciente");
+    };
 
     socket.onmessage = function(e) {
         const data = JSON.parse(e.data);
         if (data.type === 'medico_conectado') {
             appendMessage('bot', '✅ ' + data.message);
+            // Abrir el chat si está cerrado
+            if (chatbotWindow && !chatbotWindow.classList.contains('active')) {
+                chatbotWindow.classList.add('active');
+            }
         } else if (data.type === 'emergencia_medica') {
+            // Mostrar modal de emergencia visualmente llamativo
             appendMessage('bot', '🚨 ' + data.message, 'bg-danger');
             alert("🚨 ALERTA CRÍTICA: " + data.message);
+            document.body.style.animation = "pulse 1s infinite alternate";
+            document.body.style.backgroundColor = "rgba(255,0,0,0.2)";
+            setTimeout(() => {
+                document.body.style.animation = "";
+                document.body.style.backgroundColor = "";
+            }, 10000);
         }
+    };
+
+    socket.onclose = function(e) {
+        console.log("[WebSocket] Desconectado del canal del paciente");
     };
 });

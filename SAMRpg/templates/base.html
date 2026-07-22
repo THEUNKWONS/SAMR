@@ -106,8 +106,7 @@
         </div>
     </div>
 
-    {% if user.tipoUsuario == 'PACIENTE' or user.tipoUsuario == 'FAMILIAR' %}
-    {% endif %}
+
     {% else %}
     <!-- Layout Limpio Público (Sin botones huérfanos) -->
     <main class="container-fluid min-vh-100 d-flex flex-column align-items-center justify-content-center">
@@ -130,7 +129,7 @@
             });
         });
     </script>
-    <script src="{% static 'js/chatbot.js' %}?v=2"></script>
+    <script src="{% static 'js/chatbot.js' %}"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
