@@ -274,6 +274,13 @@ def registro_paciente_view(request):
                     relacionConPaciente='Familiar (Autoregistro)',
                     estado_solicitud='PENDIENTE'
                 )
+            elif datos['tipo_usuario'] == 'MEDICO_ESPECIALISTA':
+                from .models import MedicoEspecialista
+                MedicoEspecialista.objects.create(
+                    usuario=nuevo_usuario,
+                    especialidad=datos.get('especialidad', 'General'),
+                    registro_profesional=datos.get('registro_profesional', 'Pendiente')
+                )
                 
             messages.success(request, '¡Registro exitoso! Por favor, inicia sesión.')
             return redirect('login')
@@ -344,6 +351,28 @@ def gestionar_solicitud_familiar(request, familiar_id):
 @verificado_required
 @rol_requerido(['MEDICO_ESPECIALISTA', 'MEDICO_ASISTENTE'])
 def panel_especialista(request):
+    from django.db.models import Q
+    triajes_pendientes = TriageLog.objects.filter(estado_asignacion='PENDIENTE')
+    especialidad_medico = None
+    
+    if request.user.tipoUsuario == 'MEDICO_ESPECIALISTA':
+        try:
+            especialidad_medico = request.user.perfil_especialista.especialidad
+            if especialidad_medico:
+                triajes_pendientes = triajes_pendientes.filter(
+                    Q(especialidad_requerida=especialidad_medico) | 
+                    Q(especialidad_requerida__nombre='General') |
+                    Q(especialidad_requerida__isnull=True)
+                )
+        except Exception:
+            pass
+            
+    triajes_pendientes = triajes_pendientes.order_by('-timestamp')
+    
+    return render(request, 'panel_medico.html', {
+        'triajes_pendientes': triajes_pendientes,
+        'especialidad_medico_nombre': especialidad_medico.nombre if especialidad_medico else 'General'
+    })
     triajes_pendientes = TriageLog.objects.filter(
         estado_asignacion='PENDIENTE'
     ).filter(
@@ -405,6 +434,40 @@ def chatbot_api(request):
                 
                 contexto_clinico = f"Edad: {edad} años. Sexo: {sexo}. Historial Clínico: {historial}. Alergias: {alergias}. Telemetría actual: {telemetria_info}."
 
+            # --- US-4.1 Protección de Privacidad PII ---
+            # Ofuscamos el mensaje del usuario y su contexto clínico antes de enviarlo a la IA
+            user_message_clean = user_message
+            contexto_clinico_clean = contexto_clinico
+            
+            if paciente and paciente.usuario:
+                user_message_clean = ofuscar_pii(user_message, paciente.usuario)
+                contexto_clinico_clean = ofuscar_pii(contexto_clinico, paciente.usuario)
+            # ---------------------------------------------
+            
+            # Verificar si hay un triaje ATENDIDO activo
+            triaje_activo = None
+            if paciente:
+                triaje_activo = TriageLog.objects.filter(paciente=paciente, estado_asignacion='ATENDIDO').order_by('-timestamp').first()
+                
+            if triaje_activo:
+                # El paciente está en consulta con un médico. No llamar a OpenAI, enviar al dashboard.
+                channel_layer = get_channel_layer()
+                try:
+                    async_to_sync(channel_layer.group_send)(
+                        "medicos_dashboard",
+                        {
+                            "type": "chat_message_paciente",
+                            "message": user_message,
+                            "paciente": request.user.get_full_name() or request.user.username,
+                            "triaje_id": triaje_activo.id
+                        }
+                    )
+                except Exception as e:
+                    print(f"Error enviando chat al médico: {e}")
+                
+                return JsonResponse({'status': 'success', 'reply': None}) # Sin respuesta, se simula chat en vivo
+                
+            # Inicializar cliente OpenAI
             # --- SAMR-13: Integración RAG para Triaje Automatizado ---
             from .rag_engine import rag_engine
 
@@ -433,6 +496,7 @@ def chatbot_api(request):
                 "Devuelve SIEMPRE un JSON válido con la siguiente estructura exacta: "
                 "{"
                 "  \"nivel_alerta\": \"critico\" (para emergencias vitales inminentes como dolor de pecho, riesgo de desmayo, pérdida de consciencia, sangrado severo, dificultad para respirar o alergias graves), \"medio\" (infecciones, dolor agudo sin riesgo de vida inmediato) o \"bajo\" (consultas generales, síntomas leves); "
+                "  \"especialidad_requerida\": \"Cardiología\", \"Neurología\", \"Pediatría\", \"Gastroenterología\", \"Nutriología\", \"Ginecología\", \"Dermatología\", \"Psiquiatría\", \"Endocrinología\" o \"General\" (Infiere qué especialista debe atender el caso basándote en los síntomas); "
                 "  \"respuesta_paciente\": \"Mensaje empático, claro y directo. Si es crítico o medio, debes informarle al paciente que has emitido una ALERTA INMEDIATA al panel de los médicos y que un especialista se conectará con él en breve a través de la plataforma para una teleconsulta. No lo mandes a llamar al 911, asume que nuestra plataforma gestionará la emergencia.\"; "
                 "  \"resumen_medico\": \"Resumen técnico para el especialista con posible pre-diagnóstico, justificación (Explicabilidad / XAI) y referencia a los protocolos clínicos consultados.\""
                 "}"
@@ -450,8 +514,14 @@ def chatbot_api(request):
             # Parsear respuesta de la IA
             ai_data = json.loads(response.choices[0].message.content)
             nivel = ai_data.get('nivel_alerta', 'bajo')
+            especialidad_req_str = ai_data.get('especialidad_requerida', 'General')
             reply = ai_data.get('respuesta_paciente', 'He recibido tus síntomas.')
             resumen = ai_data.get('resumen_medico', 'Síntomas generales.')
+            
+            from .models import Especialidad
+            especialidad_obj = Especialidad.objects.filter(nombre__iexact=especialidad_req_str).first()
+            if not especialidad_obj:
+                especialidad_obj = Especialidad.objects.filter(nombre='General').first()
             
             # 1. Registrar Triaje en Base de Datos (Persistencia)
             # SAMR-48-US-4.7: Como arquitecta, este es el punto lógico donde se
@@ -479,6 +549,7 @@ def chatbot_api(request):
                     paciente=paciente,
                     sintomas_reportados=user_message,
                     nivel_alerta=nivel,
+                    especialidad_requerida=especialidad_obj,
                     respuesta_ia=reply,
                     resumen_medico=resumen,
                     estado_asignacion='PENDIENTE'
@@ -512,7 +583,7 @@ def chatbot_api(request):
                 AuditLog.objects.create(
                     user_id=request.user.id,
                     ip_address=request.META.get('REMOTE_ADDR'),
-                    action=f"Triaje IA Generado: {nivel}",
+                    action=f"Triaje IA Generado: {nivel} para {especialidad_obj.nombre if especialidad_obj else 'General'}",
                     model_name="TriageLog",
                     object_id=str(triage_log.id),
                     cryptographic_hash=crypto_hash
@@ -531,7 +602,8 @@ def chatbot_api(request):
                             "message": resumen,
                             "paciente": request.user.get_full_name() or request.user.username,
                             "nivel": nivel,
-                            "triaje_id": triage_log.id if triage_log else None
+                            "triaje_id": triage_log.id if triage_log else None,
+                            "especialidad_requerida": especialidad_obj.nombre if especialidad_obj else 'General'
                         }
                     )
                 except Exception as redis_err:
@@ -556,6 +628,7 @@ def aceptar_triaje(request, triaje_id):
             triaje = TriageLog.objects.get(id=triaje_id)
             if triaje.estado_asignacion == 'PENDIENTE':
                 triaje.estado_asignacion = 'ATENDIDO'
+                triaje.medico_asignado = request.user
                 triaje.save()
                 
                 # Notificar al paciente por WebSocket
@@ -635,6 +708,8 @@ def generar_receta(request, triaje_id):
 def firmar_receta(request, triaje_id):
     if request.method == 'POST':
         try:
+            data = json.loads(request.body)
+            contenido_editado = data.get('contenido_editado')
             if request.user.tipoUsuario != 'MEDICO_ESPECIALISTA':
                 raise Exception("Solo los Médicos Especialistas pueden firmar electrónicamente (US-3.6).")
                 
@@ -682,6 +757,9 @@ def firmar_receta(request, triaje_id):
             # Generar hash y firma criptográfica
             hash_doc = PrescriptionEngine.generar_hash_documento(receta.contenido)
             firma = PrescriptionEngine.firmar_receta(request.user.id, hash_doc)
+            
+            if contenido_editado:
+                receta.contenido = contenido_editado
             
             receta.firmada = True
             receta.hash_documento = hash_doc
@@ -797,4 +875,61 @@ def exportar_fhir_triaje(request, triaje_id):
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
             
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+@login_required
+@verificado_required
+@rol_requerido(['MEDICO_ESPECIALISTA', 'MEDICO_ASISTENTE'])
+def medico_chat_api(request, triaje_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            message = data.get('message', '')
+            triaje = TriageLog.objects.get(id=triaje_id)
+            
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"paciente_{triaje.paciente.usuario.id}",
+                {
+                    "type": "medico_conectado",
+                    "message": f"Mensaje del Dr. {request.user.last_name}: " + message
+                }
+            )
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+@login_required
+@verificado_required
+@rol_requerido(['MEDICO_ESPECIALISTA', 'MEDICO_ASISTENTE'])
+def solicitar_ambulancia(request, triaje_id):
+    if request.method == 'POST':
+        try:
+            triaje = TriageLog.objects.get(id=triaje_id)
+            
+            # Auditoría
+            audit_str = f"{triaje.id}-AMBULANCIA-{request.user.id}-{time.time()}".encode('utf-8')
+            crypto_hash = hashlib.sha256(audit_str).hexdigest()
+            
+            AuditLog.objects.create(
+                user_id=request.user.id,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                action=f"Ambulancia / Equipo Médico Solicitado",
+                model_name="TriageLog",
+                object_id=str(triaje.id),
+                cryptographic_hash=crypto_hash
+            )
+            
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"paciente_{triaje.paciente.usuario.id}",
+                {
+                    "type": "emergencia_medica",
+                    "message": "¡ATENCIÓN! El especialista ha solicitado una ambulancia de urgencia. Mantenga la calma, el equipo va en camino."
+                }
+            )
+            return JsonResponse({'status': 'success', 'message': 'Equipo médico solicitado. El paciente ha sido alertado.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)

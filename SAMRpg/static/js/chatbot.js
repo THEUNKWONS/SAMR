@@ -249,6 +249,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = JSON.parse(e.data);
         if (data.type === 'medico_conectado') {
             appendMessage('bot', '✅ ' + data.message);
+            // Abrir el chat si está cerrado
+            if (!chatbotWindow.classList.contains('active')) {
+                chatbotWindow.classList.add('active');
+            }
+        } else if (data.type === 'emergencia_medica') {
+            // Mostrar modal de emergencia visualmente llamativo
+            appendMessage('bot', '🚨 ' + data.message, 'bg-danger');
+            alert("🚨 ALERTA CRÍTICA: " + data.message);
+            document.body.style.animation = "pulse 1s infinite alternate";
+            document.body.style.backgroundColor = "rgba(255,0,0,0.2)";
+            setTimeout(() => {
+                document.body.style.animation = "";
+                document.body.style.backgroundColor = "";
+            }, 10000);
         }
     };
 

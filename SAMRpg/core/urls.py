@@ -24,6 +24,8 @@ urlpatterns = [
     path('api/triaje/<int:triaje_id>/aceptar/', views.aceptar_triaje, name='aceptar_triaje'),
     path('api/triaje/<int:triaje_id>/generar_receta/', views.generar_receta, name='generar_receta'),
     path('api/triaje/<int:triaje_id>/firmar_receta/', views.firmar_receta, name='firmar_receta'),
+    path('api/triaje/<int:triaje_id>/chat/', views.medico_chat_api, name='medico_chat_api'),
+    path('api/triaje/<int:triaje_id>/ambulancia/', views.solicitar_ambulancia, name='solicitar_ambulancia'),
     path('api/receta/<int:receta_id>/validar/', views.validar_receta, name='validar_receta'),
     
     # Interoperabilidad FHIR (SAMR-22)
